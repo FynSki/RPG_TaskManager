@@ -885,108 +885,200 @@ export default function App() {
 
                 {view === "settings" && (
                     <div className="space-y-6">
+                        {/* --- CHARACTER INFO --- */}
                         <div className="bg-slate-800 rounded-xl shadow p-6 border border-slate-700">
                             <h2 className="text-2xl font-semibold mb-6">Character</h2>
 
                             <div className="space-y-4">
                                 <div>
                                     <label className="block text-sm font-medium mb-2 text-slate-300">Hero Name</label>
-                                    <input type="text" value={character.name} onChange={(e) => setCharacter({ ...character, name: e.target.value })} className="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-lg text-slate-100" />
+                                    <input
+                                        type="text"
+                                        value={character.name}
+                                        onChange={(e) => setCharacter({ ...character, name: e.target.value })}
+                                        className="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-lg text-slate-100"
+                                    />
                                 </div>
 
                                 <div>
                                     <label className="block text-sm font-medium mb-2 text-slate-300">Avatar</label>
                                     <div className="flex gap-3 flex-wrap">
-                                        {AVATARS.map(avatar => (
-                                            <button key={avatar} onClick={() => setCharacter({ ...character, avatar })} className={`text-4xl p-3 rounded-lg transition-all ${character.avatar === avatar ? "bg-indigo-600 scale-110" : "bg-slate-900 hover:bg-slate-700"}`}>{avatar}</button>
+                                        {AVATARS.map((avatar) => (
+                                            <button
+                                                key={avatar}
+                                                onClick={() => setCharacter({ ...character, avatar })}
+                                                className={`text-4xl p-3 rounded-lg transition-all ${character.avatar === avatar
+                                                        ? "bg-indigo-600 scale-110"
+                                                        : "bg-slate-900 hover:bg-slate-700"
+                                                    }`}
+                                            >
+                                                {avatar}
+                                            </button>
                                         ))}
                                     </div>
                                 </div>
                             </div>
                         </div>
 
+                        {/* --- STATS & PROGRESSION --- */}
                         <div className="bg-slate-800 rounded-xl shadow p-6 border border-slate-700">
                             <h2 className="text-2xl font-semibold mb-6">Stats & Progression</h2>
 
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                                <div className="bg-slate-800 rounded-lg p-4 border border-slate-700">
-                                    <div className="flex justify-between items-center mb-2">
-                                        <div>
-                                            <p className="text-sm text-slate-300">Strength</p>
-                                            <p className="text-2xl font-bold text-slate-100">{character.strength}</p>
+                                {(["strength", "dexterity", "intelligence"] as const).map((stat) => (
+                                    <div key={stat} className="bg-slate-800 rounded-lg p-4 border border-slate-700">
+                                        <div className="flex justify-between items-center mb-2">
+                                            <div>
+                                                <p className="text-sm text-slate-300 capitalize">{stat}</p>
+                                                <p className="text-2xl font-bold text-slate-100">{character[stat]}</p>
+                                            </div>
+                                            <div className="text-right">
+                                                <div className="text-sm text-slate-300">
+                                                    Unspent: {character.unspentPoints}
+                                                </div>
+                                                <button
+                                                    onClick={() => assignPointToStat(stat)}
+                                                    disabled={character.unspentPoints <= 0}
+                                                    className="mt-2 px-3 py-1 bg-indigo-600 rounded disabled:opacity-40"
+                                                >
+                                                    +1
+                                                </button>
+                                            </div>
                                         </div>
-                                        <div className="text-right">
-                                            <div className="text-sm text-slate-300">Unspent: {character.unspentPoints}</div>
-                                            <button onClick={() => assignPointToStat("strength")} disabled={character.unspentPoints <= 0} className="mt-2 px-3 py-1 bg-indigo-600 rounded disabled:opacity-40">+1</button>
-                                        </div>
-                                    </div>
-                                    <div className="mt-3">
-                                        <p className="text-xs text-slate-400 mb-1">Progress to next stat point</p>
-                                        <ProgressBar value={statProgress.strength} max={tasksNeededForStat(character.strength)} />
-                                        <p className="text-xs text-slate-400 mt-1">{statProgress.strength}/{tasksNeededForStat(character.strength)} tasks</p>
-                                    </div>
-                                </div>
-
-                                <div className="bg-slate-800 rounded-lg p-4 border border-slate-700">
-                                    <div className="flex justify-between items-center mb-2">
-                                        <div>
-                                            <p className="text-sm text-slate-300">Dexterity</p>
-                                            <p className="text-2xl font-bold text-slate-100">{character.dexterity}</p>
-                                        </div>
-                                        <div className="text-right">
-                                            <div className="text-sm text-slate-300">Unspent: {character.unspentPoints}</div>
-                                            <button onClick={() => assignPointToStat("dexterity")} disabled={character.unspentPoints <= 0} className="mt-2 px-3 py-1 bg-indigo-600 rounded disabled:opacity-40">+1</button>
-                                        </div>
-                                    </div>
-                                    <div className="mt-3">
-                                        <p className="text-xs text-slate-400 mb-1">Progress to next stat point</p>
-                                        <ProgressBar value={statProgress.dexterity} max={tasksNeededForStat(character.dexterity)} />
-                                        <p className="text-xs text-slate-400 mt-1">{statProgress.dexterity}/{tasksNeededForStat(character.dexterity)} tasks</p>
-                                    </div>
-                                </div>
-
-                                <div className="bg-slate-800 rounded-lg p-4 border border-slate-700">
-                                    <div className="flex justify-between items-center mb-2">
-                                        <div>
-                                            <p className="text-sm text-slate-300">Intelligence</p>
-                                            <p className="text-2xl font-bold text-slate-100">{character.intelligence}</p>
-                                        </div>
-                                        <div className="text-right">
-                                            <div className="text-sm text-slate-300">Unspent: {character.unspentPoints}</div>
-                                            <button onClick={() => assignPointToStat("intelligence")} disabled={character.unspentPoints <= 0} className="mt-2 px-3 py-1 bg-indigo-600 rounded disabled:opacity-40">+1</button>
+                                        <div className="mt-3">
+                                            <p className="text-xs text-slate-400 mb-1">
+                                                Progress to next stat point
+                                            </p>
+                                            <ProgressBar
+                                                value={statProgress[stat]}
+                                                max={tasksNeededForStat(character[stat])}
+                                            />
+                                            <p className="text-xs text-slate-400 mt-1">
+                                                {statProgress[stat]}/{tasksNeededForStat(character[stat])} tasks
+                                            </p>
                                         </div>
                                     </div>
-                                    <div className="mt-3">
-                                        <p className="text-xs text-slate-400 mb-1">Progress to next stat point</p>
-                                        <ProgressBar value={statProgress.intelligence} max={tasksNeededForStat(character.intelligence)} />
-                                        <p className="text-xs text-slate-400 mt-1">{statProgress.intelligence}/{tasksNeededForStat(character.intelligence)} tasks</p>
-                                    </div>
-                                </div>
+                                ))}
                             </div>
 
-                            <div className="text-sm text-slate-400">Punkty za poziom: po awansie otrzymujesz 1 punkt do rozdania. Zadania przypisane do klasy zwiększają postęp statystyk automatycznie (patrz paski postępu).</div>
+                            <p className="text-sm text-slate-400 mb-6">
+                                Completing quests mapped to specific classes increases your stats automatically.
+                                You can also spend unspent points manually.
+                            </p>
+
+                            {/* --- SKILLS & TRAINING --- */}
+                            <div className="mt-10">
+                                <h3 className="text-2xl font-semibold mb-4 text-indigo-300">
+                                    Skills & Training
+                                </h3>
+
+                                {/* Add new skill form */}
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                                    <input
+                                        type="text"
+                                        placeholder="Skill name (e.g. Writing)"
+                                        value={newSkillName}
+                                        onChange={(e) => setNewSkillName(e.target.value)}
+                                        className="px-4 py-3 bg-slate-900 border border-slate-700 rounded-lg text-slate-100"
+                                    />
+                                    <input
+                                        type="color"
+                                        value={newSkillColor}
+                                        onChange={(e) => setNewSkillColor(e.target.value)}
+                                        className="w-16 h-12 rounded"
+                                    />
+                                    <button
+                                        onClick={addSkill}
+                                        className="flex-1 bg-indigo-600 text-white px-4 py-2 rounded-lg"
+                                    >
+                                        Add Skill
+                                    </button>
+                                </div>
+
+                                {/* List of skills */}
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                    {skills.length > 0 ? (
+                                        skills.map((s) => (
+                                            <div
+                                                key={s.id}
+                                                className="bg-slate-900 rounded-lg p-4 border border-slate-700 flex items-center justify-between"
+                                            >
+                                                <div className="flex items-center gap-3 flex-1">
+                                                    <div
+                                                        className="w-10 h-10 rounded-full flex items-center justify-center text-white font-semibold"
+                                                        style={{ background: s.color }}
+                                                    >
+                                                        {s.name[0]}
+                                                    </div>
+                                                    <div className="flex-1">
+                                                        <div className="flex justify-between items-center">
+                                                            <div className="font-medium text-slate-100">{s.name}</div>
+                                                            <span className="text-xs text-slate-400">
+                                                                Lv {s.level}
+                                                            </span>
+                                                        </div>
+                                                        <ProgressBar value={s.progress} max={s.level + 1} />
+                                                    </div>
+                                                </div>
+                                                <button
+                                                    onClick={() => deleteSkill(s.id)}
+                                                    className="text-rose-500 hover:text-rose-400 ml-3"
+                                                >
+                                                    ✕
+                                                </button>
+                                            </div>
+                                        ))
+                                    ) : (
+                                        <p className="text-slate-400 text-sm">
+                                            No skills yet — add one to start tracking your personal growth.
+                                        </p>
+                                    )}
+                                </div>
+                            </div>
                         </div>
 
+                        {/* --- DANGER ZONE --- */}
                         <div className="bg-rose-900 rounded-xl p-6 border border-rose-700">
                             <h3 className="text-xl font-semibold text-rose-100 mb-2">Danger Zone</h3>
-                            <p className="text-rose-200 text-sm mb-4">Reset all progress and start fresh. This action cannot be undone.</p>
-                            <button onClick={() => setShowResetConfirm(true)} className="bg-rose-700 hover:bg-rose-600 text-white px-6 py-3 rounded-lg">Reset All Progress</button>
+                            <p className="text-rose-200 text-sm mb-4">
+                                Reset all progress and start fresh. This action cannot be undone.
+                            </p>
+                            <button
+                                onClick={() => setShowResetConfirm(true)}
+                                className="bg-rose-700 hover:bg-rose-600 text-white px-6 py-3 rounded-lg"
+                            >
+                                Reset All Progress
+                            </button>
                         </div>
 
                         {showResetConfirm && (
                             <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 p-4">
                                 <div className="bg-slate-800 rounded-xl p-6 max-w-md w-full border border-slate-700">
                                     <h3 className="text-2xl font-semibold mb-4 text-rose-400">⚠️ Confirm Reset</h3>
-                                    <p className="text-slate-300 mb-6">Are you sure you want to reset all progress? This will delete all tasks, projects, classes and stats.</p>
+                                    <p className="text-slate-300 mb-6">
+                                        Are you sure you want to reset all progress? This will delete all tasks,
+                                        projects, classes, skills and stats.
+                                    </p>
                                     <div className="flex gap-3">
-                                        <button onClick={resetProgress} className="flex-1 bg-rose-700 hover:bg-rose-600 text-white px-6 py-3 rounded-lg">Yes, Reset Everything</button>
-                                        <button onClick={() => setShowResetConfirm(false)} className="flex-1 bg-slate-900 text-slate-300 px-6 py-3 rounded-lg">Cancel</button>
+                                        <button
+                                            onClick={resetProgress}
+                                            className="flex-1 bg-rose-700 hover:bg-rose-600 text-white px-6 py-3 rounded-lg"
+                                        >
+                                            Yes, Reset Everything
+                                        </button>
+                                        <button
+                                            onClick={() => setShowResetConfirm(false)}
+                                            className="flex-1 bg-slate-900 text-slate-300 px-6 py-3 rounded-lg"
+                                        >
+                                            Cancel
+                                        </button>
                                     </div>
                                 </div>
                             </div>
                         )}
                     </div>
                 )}
+
 
                 {view === "projects" && (
                     <div className="bg-slate-800 rounded-xl shadow p-6 border border-slate-700">
@@ -1080,33 +1172,7 @@ export default function App() {
                             </div>
                         </div>
 
-                        <div className="bg-slate-900 rounded-lg p-4 border border-slate-700 mt-6">
-                            <h3 className="text-lg font-semibold mb-3">Skills (user-created)</h3>
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                                <input type="text" placeholder="Skill name (e.g. Writing)" value={newSkillName} onChange={(e) => setNewSkillName(e.target.value)} className="px-4 py-3 bg-slate-800 border border-slate-700 rounded-lg text-slate-100" />
-                                <input type="color" value={newSkillColor} onChange={(e) => setNewSkillColor(e.target.value)} className="w-16 h-12 rounded" />
-                                <button onClick={addSkill} className="flex-1 bg-indigo-600 text-white px-4 py-2 rounded-lg">Add Skill</button>
-                            </div>
-
-                            <div className="space-y-2">
-                                {skills.map(s => (
-                                    <div key={s.id} className="flex items-center justify-between bg-slate-800 p-3 rounded border border-slate-700">
-                                        <div className="flex items-center gap-3">
-                                            <div className="w-8 h-8 rounded-full flex items-center justify-center" style={{ background: s.color }}>{s.name[0]}</div>
-                                            <div>
-                                                <div className="font-medium text-slate-100">{s.name}</div>
-                                                <div className="text-xs text-slate-400">Lv {s.level}</div>
-                                                <div className="w-40 mt-1">
-                                                    <ProgressBar value={s.progress} max={s.level + 1} />
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <button onClick={() => deleteSkill(s.id)} className="text-rose-500 hover:text-rose-400">Delete</button>
-                                    </div>
-                                ))}
-                                {skills.length === 0 && <p className="text-slate-400 text-sm">No skills yet — add one to start tracking!</p>}
-                            </div>
-                        </div>
+                        
                     </div>
                 )}
             </div>
