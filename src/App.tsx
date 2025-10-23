@@ -1,17 +1,12 @@
-
-// App.tsx
-//import React, { useEffect, useState } from "react";
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 
 /**
  * Professional-styled Task Quest app (updated)
- * - Pro (steel-blue) theme
+ * - Full app: daily/weekly/monthly/all/projects/settings
  * - Stats: strength / dexterity / intelligence with n+1 progression
  * - Task class mapping to stats
- * - Task name always visible in daily
- * - Improved layout for weekly/monthly task rows (actions aligned naturally)
- *
- * Save this file as App.tsx in your React + Tailwind project.
+ * - NEW: Skills system (user-created skills, assignable to tasks, progress/levels)
+ * - Persistence: localStorage
  */
 
 /* -----------------------------
@@ -46,6 +41,7 @@ type Task = {
     recurringDay?: number;
     statType?: "strength" | "dexterity" | "intelligence" | null;
     classId?: string | null;
+    skillId?: string | null;
 };
 
 type Character = {
@@ -70,6 +66,14 @@ type TaskClass = {
     id: string;
     name: string;
     statType: "strength" | "dexterity" | "intelligence";
+    color?: string;
+};
+
+type Skill = {
+    id: string;
+    name: string;
+    level: number;
+    progress: number;
     color?: string;
 };
 
@@ -157,12 +161,24 @@ function ProgressBar({ value, max }: ProgressBarProps) {
     const pct = Math.min((value / max) * 100, 100);
     return (
         <div className="w-full bg-slate-800 rounded-full h-3 overflow-hidden border border-slate-700">
-            <div className="h-full bg-gradient-to-r from-indigo-600 to-indigo-500 transition-all duration-500" style={{ width: `${pct}%` }} />
+            <div
+                className="h-full bg-gradient-to-r from-indigo-600 to-indigo-500 transition-all duration-500"
+                style={{ width: `${pct}%` }}
+            />
         </div>
     );
 }
 
+/* -----------------------------
+   App
+   ----------------------------- */
+
 export default function App() {
+    // reference React so TS eslint doesn't mark it unused (we need React in scope for JSX)
+    useEffect(() => {
+        void React;
+    }, []);
+
     const [character, setCharacter] = usePersistedState<Character>("character", {
         name: "Hero",
         level: 1,
@@ -172,14 +188,20 @@ export default function App() {
         strength: 0,
         dexterity: 0,
         intelligence: 0,
-        unspentPoints: 0
+        unspentPoints: 0,
     });
 
     const [tasks, setTasks] = usePersistedState<Task[]>("tasks", []);
     const [projects, setProjects] = usePersistedState<Project[]>("projects", []);
     const [taskClasses, setTaskClasses] = usePersistedState<TaskClass[]>("taskClasses", []);
-    const [recurringCompletions, setRecurringCompletions] = usePersistedState<RecurringTaskCompletion[]>("recurringCompletions", []);
-    const [statProgress, setStatProgress] = usePersistedState<{ strength: number; dexterity: number; intelligence: number; }>("statProgress", { strength: 0, dexterity: 0, intelligence: 0 });
+    const [skills, setSkills] = usePersistedState<Skill[]>("skills", []);
+    const [recurringCompletions, setRecurringCompletions] =
+        usePersistedState<RecurringTaskCompletion[]>("recurringCompletions", []);
+    const [statProgress, setStatProgress] = usePersistedState<{
+        strength: number;
+        dexterity: number;
+        intelligence: number;
+    }>("statProgress", { strength: 0, dexterity: 0, intelligence: 0 });
 
     const [view, setView] = useState<"daily" | "weekly" | "monthly" | "allTasks" | "settings" | "projects">("daily");
     const [currentDate, setCurrentDate] = useState<string>(new Date().toISOString().slice(0, 10));
@@ -194,6 +216,7 @@ export default function App() {
     const [newTaskDate, setNewTaskDate] = useState<string>(currentDate);
     const [newTaskProject, setNewTaskProject] = useState<string | null>(null);
     const [newTaskClass, setNewTaskClass] = useState<string | null>(null);
+    const [newTaskSkill, setNewTaskSkill] = useState<string | null>(null);
     const [newTaskRecurring, setNewTaskRecurring] = useState<boolean>(false);
     const [newTaskRecurringType, setNewTaskRecurringType] = useState<"daily" | "weekly" | "monthly">("daily");
     const [newTaskRecurringDay, setNewTaskRecurringDay] = useState<string>("1");
@@ -204,6 +227,8 @@ export default function App() {
     const [newClassName, setNewClassName] = useState<string>("");
     const [newClassStat, setNewClassStat] = useState<"strength" | "dexterity" | "intelligence">("strength");
     const [newClassColor, setNewClassColor] = useState<string>("#ef4444");
+    const [newSkillName, setNewSkillName] = useState<string>("");
+    const [newSkillColor, setNewSkillColor] = useState<string>("#22c55e");
 
     const today = new Date().toISOString().slice(0, 10);
 
@@ -249,6 +274,18 @@ export default function App() {
         }
     }
 
+    function incrementSkillProgress(skillId: string) {
+        const skill = skills.find(s => s.id === skillId);
+        if (!skill) return;
+        const needed = skill.level + 1;
+        const newProgress = skill.progress + 1;
+        if (newProgress >= needed) {
+            setSkills(skills.map(s => s.id === skill.id ? { ...s, level: s.level + 1, progress: 0 } : s));
+        } else {
+            setSkills(skills.map(s => s.id === skill.id ? { ...s, progress: newProgress } : s));
+        }
+    }
+
     function addTask() {
         const task: Task = {
             id: Date.now().toString(),
@@ -265,7 +302,8 @@ export default function App() {
             recurringType: newTaskRecurring ? newTaskRecurringType : undefined,
             recurringDay: newTaskRecurring && newTaskRecurringType !== "daily" ? parseInt(newTaskRecurringDay) : undefined,
             classId: newTaskClass,
-            statType: newTaskClass ? taskClasses.find(c => c.id === newTaskClass)?.statType ?? null : null
+            statType: newTaskClass ? taskClasses.find(c => c.id === newTaskClass)?.statType ?? null : null,
+            skillId: newTaskSkill
         };
         setTasks([...tasks, task]);
         resetTaskForm();
@@ -284,6 +322,7 @@ export default function App() {
             projectId: newTaskProject,
             classId: newTaskClass,
             statType: newTaskClass ? taskClasses.find(c => c.id === newTaskClass)?.statType ?? null : null,
+            skillId: newTaskSkill,
             isRecurring: newTaskRecurring,
             recurringType: newTaskRecurring ? newTaskRecurringType : undefined,
             recurringDay: newTaskRecurring && newTaskRecurringType !== "daily" ? parseInt(newTaskRecurringDay) : undefined
@@ -302,6 +341,7 @@ export default function App() {
         setNewTaskDate(currentDate);
         setNewTaskProject(null);
         setNewTaskClass(null);
+        setNewTaskSkill(null);
         setNewTaskRecurring(false);
         setNewTaskRecurringType("daily");
         setNewTaskRecurringDay("1");
@@ -312,27 +352,26 @@ export default function App() {
     }
 
     function toggleTask(task: Task, date: string) {
+        function complete() {
+            addXp(task.xpReward);
+            if (task.statType) incrementStatProgress(task.statType);
+            if (task.skillId) incrementSkillProgress(task.skillId);
+        }
+
         if (task.isRecurring) {
             const existing = recurringCompletions.find(c => c.taskId === task.id && c.date === date);
             if (existing) {
                 const updated = recurringCompletions.map(c => c.taskId === task.id && c.date === date ? { ...c, completed: !c.completed } : c);
                 setRecurringCompletions(updated);
-                if (!existing.completed) {
-                    addXp(task.xpReward);
-                    if (task.statType) incrementStatProgress(task.statType);
-                }
+                if (!existing.completed) complete();
             } else {
                 setRecurringCompletions([...recurringCompletions, { taskId: task.id, date, completed: true }]);
-                addXp(task.xpReward);
-                if (task.statType) incrementStatProgress(task.statType);
+                complete();
             }
         } else {
             const updated = tasks.map(t => t.id === task.id ? { ...t, completed: !t.completed } : t);
             setTasks(updated);
-            if (!task.completed) {
-                addXp(task.xpReward);
-                if (task.statType) incrementStatProgress(task.statType);
-            }
+            if (!task.completed) complete();
         }
     }
 
@@ -392,6 +431,25 @@ export default function App() {
         setTasks(tasks.map(t => t.classId === id ? { ...t, classId: null, statType: null } : t));
     }
 
+    function addSkill() {
+        if (newSkillName.trim()) {
+            const skill: Skill = {
+                id: Date.now().toString(),
+                name: newSkillName,
+                level: 0,
+                progress: 0,
+                color: newSkillColor
+            };
+            setSkills([...skills, skill]);
+            setNewSkillName("");
+        }
+    }
+
+    function deleteSkill(id: string) {
+        setSkills(skills.filter(s => s.id !== id));
+        setTasks(tasks.map(t => t.skillId === id ? { ...t, skillId: null } : t));
+    }
+
     function resetProgress() {
         localStorage.clear();
         window.location.reload();
@@ -441,6 +499,7 @@ export default function App() {
         setNewTaskDate(task.dueDate);
         setNewTaskProject(task.projectId);
         setNewTaskClass(task.classId ?? null);
+        setNewTaskSkill(task.skillId ?? null);
         setNewTaskRecurring(task.isRecurring ?? false);
         setNewTaskRecurringType(task.recurringType ?? "daily");
         setNewTaskRecurringDay((task.recurringDay ?? 1).toString());
@@ -535,6 +594,14 @@ export default function App() {
                                 </div>
 
                                 <div>
+                                    <label className="block text-sm font-medium mb-2 text-slate-300">Skill (user-created)</label>
+                                    <select value={newTaskSkill ?? ""} onChange={(e) => setNewTaskSkill(e.target.value || null)} className="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-lg text-slate-100">
+                                        <option value="">None</option>
+                                        {skills.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                                    </select>
+                                </div>
+
+                                <div>
                                     <label className="flex items-center gap-2 cursor-pointer">
                                         <input type="checkbox" checked={newTaskRecurring} onChange={(e) => setNewTaskRecurring(e.target.checked)} className="w-5 h-5" />
                                         <span className="text-sm font-medium text-slate-300">Recurring Task</span>
@@ -597,6 +664,7 @@ export default function App() {
                                 const completed = isTaskCompleted(task, currentDate);
                                 const project = task.projectId ? projects.find(p => p.id === task.projectId) : null;
                                 const taskClass = task.classId ? taskClasses.find(c => c.id === task.classId) : null;
+                                const taskSkill = task.skillId ? skills.find(s => s.id === task.skillId) : null;
 
                                 return (
                                     <div key={task.id} className={`bg-slate-900 rounded-lg p-4 border ${completed ? "border-indigo-700 bg-slate-900/50" : "border-slate-700"}`}>
@@ -608,6 +676,7 @@ export default function App() {
                                                     <h3 className={`text-lg font-medium ${completed ? "line-through text-slate-500" : "text-slate-100"}`}>{task.name}</h3>
                                                     {project && <span className="px-2 py-1 rounded text-xs font-medium" style={{ background: project.color + "30", color: project.color }}>{project.name}</span>}
                                                     {taskClass && <span className="px-2 py-1 rounded text-xs font-medium" style={{ background: taskClass.color + "30", color: taskClass.color }}>{taskClass.name}</span>}
+                                                    {taskSkill && <span className="px-2 py-1 rounded text-xs font-medium" style={{ background: taskSkill.color + "30", color: taskSkill.color }}>{taskSkill.name}</span>}
                                                 </div>
 
                                                 {task.description && <p className="text-sm text-slate-400 mb-2">{task.description}</p>}
@@ -616,6 +685,7 @@ export default function App() {
                                                     <span className={`px-2 py-1 rounded ${task.priority === "high" ? "bg-rose-900/50 text-rose-300" : task.priority === "medium" ? "bg-amber-900/50 text-amber-300" : "bg-slate-700 text-slate-300"}`}>{task.priority}</span>
                                                     <span>XP: {task.xpReward}</span>
                                                     {task.statType && <span className="text-indigo-400">+{task.statType}</span>}
+                                                    {task.skillId && <span className="text-green-300">+skill</span>}
                                                 </div>
 
                                                 {task.subtasks.length > 0 && (
@@ -772,6 +842,7 @@ export default function App() {
                             {tasks.map(task => {
                                 const project = task.projectId ? projects.find(p => p.id === task.projectId) : null;
                                 const taskClass = task.classId ? taskClasses.find(c => c.id === task.classId) : null;
+                                const taskSkill = task.skillId ? skills.find(s => s.id === task.skillId) : null;
 
                                 return (
                                     <div key={task.id} className={`bg-slate-900 rounded-lg p-4 border ${task.completed ? "border-indigo-700 bg-slate-900/50" : "border-slate-700"}`}>
@@ -783,6 +854,7 @@ export default function App() {
                                                     <h3 className={`text-lg font-medium ${task.completed ? "line-through text-slate-500" : "text-slate-100"}`}>{task.name}</h3>
                                                     {project && <span className="px-2 py-1 rounded text-xs font-medium" style={{ background: project.color + "30", color: project.color }}>{project.name}</span>}
                                                     {taskClass && <span className="px-2 py-1 rounded text-xs font-medium" style={{ background: taskClass.color + "30", color: taskClass.color }}>{taskClass.name}</span>}
+                                                    {taskSkill && <span className="px-2 py-1 rounded text-xs font-medium" style={{ background: taskSkill.color + "30", color: taskSkill.color }}>{taskSkill.name}</span>}
                                                     {task.isRecurring && <span className="px-2 py-1 rounded text-xs font-medium bg-indigo-900/50 text-indigo-300">Recurring</span>}
                                                 </div>
 
@@ -793,6 +865,7 @@ export default function App() {
                                                     <span>Due: {task.dueDate}</span>
                                                     <span>XP: {task.xpReward}</span>
                                                     {task.statType && <span className="text-indigo-400">+{task.statType}</span>}
+                                                    {task.skillId && <span className="text-green-300">+skill</span>}
                                                 </div>
                                             </div>
 
@@ -1004,6 +1077,34 @@ export default function App() {
                                         <button onClick={() => deleteTaskClass(c.id)} className="text-rose-500 hover:text-rose-400">Delete</button>
                                     </div>
                                 ))}
+                            </div>
+                        </div>
+
+                        <div className="bg-slate-900 rounded-lg p-4 border border-slate-700 mt-6">
+                            <h3 className="text-lg font-semibold mb-3">Skills (user-created)</h3>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                                <input type="text" placeholder="Skill name (e.g. Writing)" value={newSkillName} onChange={(e) => setNewSkillName(e.target.value)} className="px-4 py-3 bg-slate-800 border border-slate-700 rounded-lg text-slate-100" />
+                                <input type="color" value={newSkillColor} onChange={(e) => setNewSkillColor(e.target.value)} className="w-16 h-12 rounded" />
+                                <button onClick={addSkill} className="flex-1 bg-indigo-600 text-white px-4 py-2 rounded-lg">Add Skill</button>
+                            </div>
+
+                            <div className="space-y-2">
+                                {skills.map(s => (
+                                    <div key={s.id} className="flex items-center justify-between bg-slate-800 p-3 rounded border border-slate-700">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-8 h-8 rounded-full flex items-center justify-center" style={{ background: s.color }}>{s.name[0]}</div>
+                                            <div>
+                                                <div className="font-medium text-slate-100">{s.name}</div>
+                                                <div className="text-xs text-slate-400">Lv {s.level}</div>
+                                                <div className="w-40 mt-1">
+                                                    <ProgressBar value={s.progress} max={s.level + 1} />
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <button onClick={() => deleteSkill(s.id)} className="text-rose-500 hover:text-rose-400">Delete</button>
+                                    </div>
+                                ))}
+                                {skills.length === 0 && <p className="text-slate-400 text-sm">No skills yet — add one to start tracking!</p>}
                             </div>
                         </div>
                     </div>
