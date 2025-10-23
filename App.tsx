@@ -1,5 +1,21 @@
-import React, { useState, useEffect } from "react";
 
+// App.tsx
+import React, { useEffect, useState } from "react";
+
+/**
+ * Professional-styled Task Quest app (updated)
+ * - Pro (steel-blue) theme
+ * - Stats: strength / dexterity / intelligence with n+1 progression
+ * - Task class mapping to stats
+ * - Task name always visible in daily
+ * - Improved layout for weekly/monthly task rows (actions aligned naturally)
+ *
+ * Save this file as App.tsx in your React + Tailwind project.
+ */
+
+/* -----------------------------
+   Types
+   ----------------------------- */
 type Project = {
     id: string;
     name: string;
@@ -15,7 +31,7 @@ type SubTask = {
 
 type Task = {
     id: string;
-    projectId: string;
+    projectId: string | null;
     name: string;
     description: string;
     completed: boolean;
@@ -24,6 +40,11 @@ type Task = {
     dueDate: string;
     subtasks: SubTask[];
     createdAt: string;
+    isRecurring?: boolean;
+    recurringType?: "daily" | "weekly" | "monthly";
+    recurringDay?: number;
+    statType?: "strength" | "dexterity" | "intelligence" | null;
+    classId?: string | null;
 };
 
 type Character = {
@@ -31,13 +52,37 @@ type Character = {
     level: number;
     xp: number;
     totalXp: number;
+    avatar: string;
+    strength: number;
+    dexterity: number;
+    intelligence: number;
+    unspentPoints: number;
 };
+
+type RecurringTaskCompletion = {
+    taskId: string;
+    date: string;
+    completed: boolean;
+};
+
+type TaskClass = {
+    id: string;
+    name: string;
+    statType: "strength" | "dexterity" | "intelligence";
+    color?: string;
+};
+
+/* -----------------------------
+   Constants & helpers
+   ----------------------------- */
+
+const AVATARS = ["⚔️", "🛡️", "🏹", "📚", "🧙", "🧠", "🧘"];
 
 function usePersistedState<T>(key: string, defaultValue: T) {
     const [state, setState] = useState<T>(() => {
         try {
-            const storedValue = localStorage.getItem(key);
-            return storedValue ? JSON.parse(storedValue) : defaultValue;
+            const stored = localStorage.getItem(key);
+            return stored ? JSON.parse(stored) : defaultValue;
         } catch {
             return defaultValue;
         }
@@ -47,7 +92,7 @@ function usePersistedState<T>(key: string, defaultValue: T) {
         try {
             localStorage.setItem(key, JSON.stringify(state));
         } catch {
-            // Silent fail
+            // ignore
         }
     }, [key, state]);
 
@@ -55,7 +100,7 @@ function usePersistedState<T>(key: string, defaultValue: T) {
 }
 
 function calculateXpForLevel(level: number): number {
-    return Math.floor(100 * Math.pow(1.5, level - 1));
+    return Math.floor(250 * level * (level + 1));
 }
 
 function getWeekDates(dateStr: string): string[] {
@@ -74,581 +119,585 @@ function getWeekDates(dateStr: string): string[] {
 }
 
 function getMonthDates(dateStr: string): string[] {
-    const date = new Date(dateStr);
-    const year = date.getFullYear();
-    const month = date.getMonth();
-    const firstDay = new Date(year, month, 1);
-    const lastDay = new Date(year, month + 1, 0);
+    const [year, month] = dateStr.split("-").map(Number);
+    const firstDay = new Date(year, month - 1, 1);
+    const lastDay = new Date(year, month, 0);
+
+    const firstDayOfWeek = firstDay.getDay();
+    const adjustedFirstDay = firstDayOfWeek === 0 ? 6 : firstDayOfWeek - 1;
 
     const dates: string[] = [];
-    for (let d = firstDay.getDate(); d <= lastDay.getDate(); d++) {
-        const currentDate = new Date(year, month, d);
-        dates.push(currentDate.toISOString().slice(0, 10));
+
+    for (let i = 0; i < adjustedFirstDay; i++) {
+        dates.push("");
     }
+
+    for (let d = 1; d <= lastDay.getDate(); d++) {
+        const monthStr = month.toString().padStart(2, "0");
+        const dayStr = d.toString().padStart(2, "0");
+        dates.push(`${year}-${monthStr}-${dayStr}`);
+    }
+
     return dates;
 }
 
 function getDayName(dateStr: string): string {
     const date = new Date(dateStr);
-    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
     return days[date.getDay()];
 }
 
-function getMonthName(dateStr: string): string {
-    const date = new Date(dateStr);
-    const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-    return months[date.getMonth()];
+type ProgressBarProps = {
+    value: number;
+    max: number;
+};
+
+function ProgressBar({ value, max }: ProgressBarProps) {
+    const pct = Math.min((value / max) * 100, 100);
+    return (
+        <div className="w-full bg-slate-800 rounded-full h-3 overflow-hidden border border-slate-700">
+            <div className="h-full bg-gradient-to-r from-indigo-600 to-indigo-500 transition-all duration-500" style={{ width: `${pct}%` }} />
+        </div>
+    );
 }
 
 export default function App() {
-    const today = new Date().toISOString().slice(0, 10);
-
-    const [projects, setProjects] = usePersistedState<Project[]>("rpgProjectManagerProjects", [
-        { id: "proj1", name: "Personal Development", color: "#3b82f6", description: "Self-improvement goals" }
-    ]);
-
-    const [tasks, setTasks] = usePersistedState<Task[]>("rpgProjectManagerTasks", []);
-    const [character, setCharacter] = usePersistedState<Character>("rpgProjectManagerCharacter", {
+    const [character, setCharacter] = usePersistedState<Character>("character", {
         name: "Hero",
         level: 1,
         xp: 0,
-        totalXp: 0
+        totalXp: 0,
+        avatar: AVATARS[0],
+        strength: 0,
+        dexterity: 0,
+        intelligence: 0,
+        unspentPoints: 0
     });
 
-    const [view, setView] = useState<"daily" | "weekly" | "monthly" | "character" | "projects">("daily");
-    const [selectedDate, setSelectedDate] = useState(today);
-    const [expandedTask, setExpandedTask] = useState<string | null>(null);
+    const [tasks, setTasks] = usePersistedState<Task[]>("tasks", []);
+    const [projects, setProjects] = usePersistedState<Project[]>("projects", []);
+    const [taskClasses, setTaskClasses] = usePersistedState<TaskClass[]>("taskClasses", []);
+    const [recurringCompletions, setRecurringCompletions] = usePersistedState<RecurringTaskCompletion[]>("recurringCompletions", []);
+    const [statProgress, setStatProgress] = usePersistedState<{ strength: number; dexterity: number; intelligence: number; }>("statProgress", { strength: 0, dexterity: 0, intelligence: 0 });
 
-    const [newProjectName, setNewProjectName] = useState("");
-    const [newProjectDesc, setNewProjectDesc] = useState("");
-    const [newProjectColor, setNewProjectColor] = useState("#3b82f6");
+    const [view, setView] = useState<"daily" | "weekly" | "monthly" | "allTasks" | "settings" | "projects">("daily");
+    const [currentDate, setCurrentDate] = useState<string>(new Date().toISOString().slice(0, 10));
+    const [showTaskForm, setShowTaskForm] = useState<boolean>(false);
+    const [editingTask, setEditingTask] = useState<Task | null>(null);
+    const [showResetConfirm, setShowResetConfirm] = useState<boolean>(false);
 
-    const [showAddTaskModal, setShowAddTaskModal] = useState(false);
-    const [taskModalDate, setTaskModalDate] = useState(today);
-    const [newTaskName, setNewTaskName] = useState("");
-    const [newTaskDesc, setNewTaskDesc] = useState("");
+    const [newTaskName, setNewTaskName] = useState<string>("");
+    const [newTaskDesc, setNewTaskDesc] = useState<string>("");
+    const [newTaskXp, setNewTaskXp] = useState<string>("10");
     const [newTaskPriority, setNewTaskPriority] = useState<"low" | "medium" | "high">("medium");
-    const [newTaskXP, setNewTaskXP] = useState(50);
-    const [newTaskProject, setNewTaskProject] = useState(projects[0]?.id || "");
+    const [newTaskDate, setNewTaskDate] = useState<string>(currentDate);
+    const [newTaskProject, setNewTaskProject] = useState<string | null>(null);
+    const [newTaskClass, setNewTaskClass] = useState<string | null>(null);
+    const [newTaskRecurring, setNewTaskRecurring] = useState<boolean>(false);
+    const [newTaskRecurringType, setNewTaskRecurringType] = useState<"daily" | "weekly" | "monthly">("daily");
+    const [newTaskRecurringDay, setNewTaskRecurringDay] = useState<string>("1");
 
-    const [editingCharacter, setEditingCharacter] = useState(false);
-    const [newCharacterName, setNewCharacterName] = useState(character.name);
+    const [newProjectName, setNewProjectName] = useState<string>("");
+    const [newProjectDesc, setNewProjectDesc] = useState<string>("");
+    const [newProjectColor, setNewProjectColor] = useState<string>("#3b82f6");
+    const [newClassName, setNewClassName] = useState<string>("");
+    const [newClassStat, setNewClassStat] = useState<"strength" | "dexterity" | "intelligence">("strength");
+    const [newClassColor, setNewClassColor] = useState<string>("#ef4444");
 
-    const xpForNextLevel = calculateXpForLevel(character.level);
-    const xpProgress = (character.xp / xpForNextLevel) * 100;
+    const today = new Date().toISOString().slice(0, 10);
 
-    const weekDates = getWeekDates(selectedDate);
-    const monthDates = getMonthDates(selectedDate);
+    function tasksNeededForStat(currentStat: number): number {
+        return currentStat + 1;
+    }
 
-    const addProject = () => {
-        if (!newProjectName.trim()) return;
-        const newProject: Project = {
-            id: `proj-${Date.now()}`,
-            name: newProjectName,
-            color: newProjectColor,
-            description: newProjectDesc
-        };
-        setProjects([...projects, newProject]);
-        setNewProjectName("");
-        setNewProjectDesc("");
-        setNewProjectColor("#3b82f6");
-    };
-
-    const deleteProject = (id: string) => {
-        if (projects.length <= 1) {
-            alert("You must have at least one project!");
-            return;
+    function addXp(amount: number) {
+        const newTotal = character.totalXp + amount;
+        const requiredForNextLevel = calculateXpForLevel(character.level + 1);
+        if (newTotal >= requiredForNextLevel) {
+            setCharacter(prev => ({
+                ...prev,
+                xp: newTotal - requiredForNextLevel,
+                totalXp: newTotal,
+                level: prev.level + 1,
+                unspentPoints: prev.unspentPoints + 1
+            }));
+        } else {
+            setCharacter(prev => ({ ...prev, xp: newTotal, totalXp: newTotal }));
         }
-        setProjects(projects.filter(p => p.id !== id));
-        setTasks(tasks.filter(t => t.projectId !== id));
-    };
+    }
 
-    const addTask = () => {
-        if (!newTaskName.trim() || !newTaskProject) return;
-        const newTask: Task = {
-            id: `task-${Date.now()}`,
+    function incrementStatProgress(statType: "strength" | "dexterity" | "intelligence") {
+        const needed = tasksNeededForStat(character[statType]);
+        const newProgress = statProgress[statType] + 1;
+
+        if (newProgress >= needed) {
+            setStatProgress(prev => ({ ...prev, [statType]: 0 }));
+            setCharacter(prev => ({ ...prev, [statType]: prev[statType] + 1 }));
+        } else {
+            setStatProgress(prev => ({ ...prev, [statType]: newProgress }));
+        }
+    }
+
+    function assignPointToStat(statType: "strength" | "dexterity" | "intelligence") {
+        if (character.unspentPoints > 0) {
+            setCharacter(prev => ({
+                ...prev,
+                [statType]: prev[statType] + 1,
+                unspentPoints: prev.unspentPoints - 1
+            }));
+        }
+    }
+
+    function addTask() {
+        const task: Task = {
+            id: Date.now().toString(),
             projectId: newTaskProject,
             name: newTaskName,
             description: newTaskDesc,
             completed: false,
-            xpReward: newTaskXP,
+            xpReward: parseInt(newTaskXp) || 10,
             priority: newTaskPriority,
-            dueDate: taskModalDate,
+            dueDate: newTaskDate,
             subtasks: [],
-            createdAt: new Date().toISOString()
+            createdAt: new Date().toISOString(),
+            isRecurring: newTaskRecurring,
+            recurringType: newTaskRecurring ? newTaskRecurringType : undefined,
+            recurringDay: newTaskRecurring && newTaskRecurringType !== "daily" ? parseInt(newTaskRecurringDay) : undefined,
+            classId: newTaskClass,
+            statType: newTaskClass ? taskClasses.find(c => c.id === newTaskClass)?.statType ?? null : null
         };
-        setTasks([...tasks, newTask]);
+        setTasks([...tasks, task]);
+        resetTaskForm();
+        setShowTaskForm(false);
+    }
+
+    function updateTask() {
+        if (!editingTask) return;
+        const updated = tasks.map(t => t.id === editingTask.id ? {
+            ...t,
+            name: newTaskName,
+            description: newTaskDesc,
+            xpReward: parseInt(newTaskXp) || 10,
+            priority: newTaskPriority,
+            dueDate: newTaskDate,
+            projectId: newTaskProject,
+            classId: newTaskClass,
+            statType: newTaskClass ? taskClasses.find(c => c.id === newTaskClass)?.statType ?? null : null,
+            isRecurring: newTaskRecurring,
+            recurringType: newTaskRecurring ? newTaskRecurringType : undefined,
+            recurringDay: newTaskRecurring && newTaskRecurringType !== "daily" ? parseInt(newTaskRecurringDay) : undefined
+        } : t);
+        setTasks(updated);
+        resetTaskForm();
+        setEditingTask(null);
+        setShowTaskForm(false);
+    }
+
+    function resetTaskForm() {
         setNewTaskName("");
         setNewTaskDesc("");
+        setNewTaskXp("10");
         setNewTaskPriority("medium");
-        setNewTaskXP(50);
-        setShowAddTaskModal(false);
-    };
+        setNewTaskDate(currentDate);
+        setNewTaskProject(null);
+        setNewTaskClass(null);
+        setNewTaskRecurring(false);
+        setNewTaskRecurringType("daily");
+        setNewTaskRecurringDay("1");
+    }
 
-    const toggleTask = (taskId: string) => {
-        const task = tasks.find(t => t.id === taskId);
-        if (!task) return;
+    function deleteTask(id: string) {
+        setTasks(tasks.filter(t => t.id !== id));
+    }
 
-        const wasCompleted = task.completed;
-
-        setTasks(tasks.map(t =>
-            t.id === taskId ? { ...t, completed: !t.completed } : t
-        ));
-
-        if (!wasCompleted) {
-            const newXp = character.xp + task.xpReward;
-            const newTotalXp = character.totalXp + task.xpReward;
-            let newLevel = character.level;
-            let remainingXp = newXp;
-
-            while (remainingXp >= calculateXpForLevel(newLevel)) {
-                remainingXp -= calculateXpForLevel(newLevel);
-                newLevel++;
+    function toggleTask(task: Task, date: string) {
+        if (task.isRecurring) {
+            const existing = recurringCompletions.find(c => c.taskId === task.id && c.date === date);
+            if (existing) {
+                const updated = recurringCompletions.map(c => c.taskId === task.id && c.date === date ? { ...c, completed: !c.completed } : c);
+                setRecurringCompletions(updated);
+                if (!existing.completed) {
+                    addXp(task.xpReward);
+                    if (task.statType) incrementStatProgress(task.statType);
+                }
+            } else {
+                setRecurringCompletions([...recurringCompletions, { taskId: task.id, date, completed: true }]);
+                addXp(task.xpReward);
+                if (task.statType) incrementStatProgress(task.statType);
             }
-
-            setCharacter({
-                ...character,
-                level: newLevel,
-                xp: remainingXp,
-                totalXp: newTotalXp
-            });
         } else {
-            const newXp = Math.max(0, character.xp - task.xpReward);
-            const newTotalXp = Math.max(0, character.totalXp - task.xpReward);
-            setCharacter({
-                ...character,
-                xp: newXp,
-                totalXp: newTotalXp
-            });
+            const updated = tasks.map(t => t.id === task.id ? { ...t, completed: !t.completed } : t);
+            setTasks(updated);
+            if (!task.completed) {
+                addXp(task.xpReward);
+                if (task.statType) incrementStatProgress(task.statType);
+            }
         }
-    };
+    }
 
-    const deleteTask = (taskId: string) => {
-        setTasks(tasks.filter(t => t.id !== taskId));
-    };
+    function addSubtask(taskId: string, subtaskName: string) {
+        const updated = tasks.map(t => t.id === taskId ? { ...t, subtasks: [...t.subtasks, { id: Date.now().toString(), name: subtaskName, completed: false }] } : t);
+        setTasks(updated);
+    }
 
-    const addSubtask = (taskId: string, subtaskName: string) => {
-        if (!subtaskName.trim()) return;
-        setTasks(tasks.map(t =>
-            t.id === taskId
-                ? { ...t, subtasks: [...t.subtasks, { id: `sub-${Date.now()}`, name: subtaskName, completed: false }] }
-                : t
-        ));
-    };
+    function toggleSubtask(taskId: string, subtaskId: string) {
+        const updated = tasks.map(t => {
+            if (t.id === taskId) {
+                const subs = t.subtasks.map(s => s.id === subtaskId ? { ...s, completed: !s.completed } : s);
+                return { ...t, subtasks: subs };
+            }
+            return t;
+        });
+        setTasks(updated);
+    }
 
-    const toggleSubtask = (taskId: string, subtaskId: string) => {
-        setTasks(tasks.map(t =>
-            t.id === taskId
-                ? { ...t, subtasks: t.subtasks.map(st => st.id === subtaskId ? { ...st, completed: !st.completed } : st) }
-                : t
-        ));
-    };
-
-    const deleteSubtask = (taskId: string, subtaskId: string) => {
-        setTasks(tasks.map(t =>
-            t.id === taskId
-                ? { ...t, subtasks: t.subtasks.filter(st => st.id !== subtaskId) }
-                : t
-        ));
-    };
-
-    const updateCharacterName = () => {
-        if (newCharacterName.trim()) {
-            setCharacter({ ...character, name: newCharacterName });
-            setEditingCharacter(false);
+    function addProject() {
+        if (newProjectName.trim()) {
+            const project: Project = {
+                id: Date.now().toString(),
+                name: newProjectName,
+                color: newProjectColor,
+                description: newProjectDesc
+            };
+            setProjects([...projects, project]);
+            setNewProjectName("");
+            setNewProjectDesc("");
+            setNewProjectColor("#3b82f6");
         }
-    };
+    }
 
-    const getTasksForDate = (date: string) => {
-        return tasks.filter(t => t.dueDate === date);
-    };
+    function deleteProject(id: string) {
+        setProjects(projects.filter(p => p.id !== id));
+        setTasks(tasks.map(t => t.projectId === id ? { ...t, projectId: null } : t));
+    }
 
-    const getTasksByProject = (projectId: string) => {
-        return tasks.filter(t => t.projectId === projectId);
-    };
-
-    const getPriorityColor = (priority: string) => {
-        switch (priority) {
-            case "high": return "text-red-600 bg-red-50";
-            case "medium": return "text-yellow-600 bg-yellow-50";
-            case "low": return "text-green-600 bg-green-50";
-            default: return "text-gray-600 bg-gray-50";
+    function addTaskClass() {
+        if (newClassName.trim()) {
+            const taskClass: TaskClass = {
+                id: Date.now().toString(),
+                name: newClassName,
+                statType: newClassStat,
+                color: newClassColor
+            };
+            setTaskClasses([...taskClasses, taskClass]);
+            setNewClassName("");
+            setNewClassStat("strength");
+            setNewClassColor("#ef4444");
         }
-    };
+    }
 
-    const changeDate = (days: number) => {
-        const date = new Date(selectedDate);
-        date.setDate(date.getDate() + days);
-        setSelectedDate(date.toISOString().slice(0, 10));
-    };
+    function deleteTaskClass(id: string) {
+        setTaskClasses(taskClasses.filter(c => c.id !== id));
+        setTasks(tasks.map(t => t.classId === id ? { ...t, classId: null, statType: null } : t));
+    }
 
-    const changeWeek = (weeks: number) => {
-        const date = new Date(selectedDate);
-        date.setDate(date.getDate() + (weeks * 7));
-        setSelectedDate(date.toISOString().slice(0, 10));
-    };
+    function resetProgress() {
+        localStorage.clear();
+        window.location.reload();
+    }
 
-    const changeMonth = (months: number) => {
-        const date = new Date(selectedDate);
-        date.setMonth(date.getMonth() + months);
-        setSelectedDate(date.toISOString().slice(0, 10));
-    };
+    function isTaskForDate(task: Task, date: string): boolean {
+        if (!task.isRecurring) return task.dueDate === date;
+        if (task.recurringType === "daily") return true;
+        if (task.recurringType === "weekly") {
+            const d = new Date(date);
+            return d.getDay() === (task.recurringDay ?? 1);
+        }
+        if (task.recurringType === "monthly") {
+            const d = new Date(date);
+            return d.getDate() === (task.recurringDay ?? 1);
+        }
+        return false;
+    }
 
-    const openAddTaskModal = (date: string) => {
-        setTaskModalDate(date);
-        setNewTaskProject(projects[0]?.id || "");
-        setShowAddTaskModal(true);
-    };
+    function isTaskCompleted(task: Task, date: string): boolean {
+        if (!task.isRecurring) return task.completed;
+        const completion = recurringCompletions.find(c => c.taskId === task.id && c.date === date);
+        return completion?.completed ?? false;
+    }
+
+    const weekDates = getWeekDates(currentDate);
+    const monthDates = getMonthDates(currentDate);
+
+    const dailyTasks = tasks.filter(t => isTaskForDate(t, currentDate));
+
+    const weeklyTasks: Record<string, Task[]> = {};
+    weekDates.forEach(d => {
+        weeklyTasks[d] = tasks.filter(t => isTaskForDate(t, d));
+    });
+
+    const monthlyTasks: Record<string, Task[]> = {};
+    monthDates.forEach(d => {
+        if (d) monthlyTasks[d] = tasks.filter(t => isTaskForDate(t, d));
+    });
+
+    function openEditTask(task: Task) {
+        setEditingTask(task);
+        setNewTaskName(task.name);
+        setNewTaskDesc(task.description);
+        setNewTaskXp(task.xpReward.toString());
+        setNewTaskPriority(task.priority);
+        setNewTaskDate(task.dueDate);
+        setNewTaskProject(task.projectId);
+        setNewTaskClass(task.classId ?? null);
+        setNewTaskRecurring(task.isRecurring ?? false);
+        setNewTaskRecurringType(task.recurringType ?? "daily");
+        setNewTaskRecurringDay((task.recurringDay ?? 1).toString());
+        setShowTaskForm(true);
+    }
+
+    const requiredForNextLevel = calculateXpForLevel(character.level + 1);
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-purple-50 to-blue-50 p-4">
-            <div className="max-w-7xl mx-auto">
-                {/* Header */}
-                <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
-                    <div className="flex items-center justify-between mb-4">
-                        <h1 className="text-3xl font-bold text-gray-800 flex items-center gap-2">
-                            <span className="text-3xl">⚔️</span>
-                            Quest Manager
-                        </h1>
-                        <div className="flex items-center gap-2 bg-gradient-to-r from-purple-500 to-blue-500 text-white px-4 py-2 rounded-lg">
-                            <span className="text-xl">⭐</span>
-                            <span className="font-semibold">Level {character.level}</span>
+        <div className="min-h-screen bg-slate-900 text-slate-100">
+            <div className="max-w-7xl mx-auto px-4 py-8">
+                <div className="bg-gradient-to-br from-indigo-900 to-slate-800 rounded-xl shadow-2xl p-6 mb-8 border border-indigo-700">
+                    <div className="flex flex-col md:flex-row items-center justify-between gap-6">
+                        <div className="flex items-center gap-4">
+                            <div className="text-6xl">{character.avatar}</div>
+                            <div>
+                                <h1 className="text-3xl font-bold">{character.name}</h1>
+                                <p className="text-indigo-200">Level {character.level} Hero</p>
+                            </div>
                         </div>
-                    </div>
 
-                    {/* XP Bar */}
-                    <div className="mb-4">
-                        <div className="flex justify-between text-sm mb-1">
-                            <span className="font-medium text-gray-700">{character.name}</span>
-                            <span className="text-gray-600">{character.xp} / {xpForNextLevel} XP</span>
+                        <div className="w-full md:w-auto">
+                            <p className="text-sm text-indigo-200 mb-2">XP: {character.xp} / {requiredForNextLevel}</p>
+                            <ProgressBar value={character.xp} max={requiredForNextLevel} />
                         </div>
-                        <div className="w-full bg-gray-200 rounded-full h-4 overflow-hidden">
-                            <div
-                                className="h-full bg-gradient-to-r from-yellow-400 to-orange-500 transition-all duration-500"
-                                style={{ width: `${xpProgress}%` }}
-                            />
-                        </div>
-                    </div>
-
-                    {/* Navigation */}
-                    <div className="flex gap-2 flex-wrap">
-                        <button
-                            onClick={() => setView("daily")}
-                            className={`px-4 py-2 rounded-lg font-medium transition-colors ${view === "daily" ? "bg-purple-500 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                                }`}
-                        >
-                            📅 Daily
-                        </button>
-                        <button
-                            onClick={() => setView("weekly")}
-                            className={`px-4 py-2 rounded-lg font-medium transition-colors ${view === "weekly" ? "bg-purple-500 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                                }`}
-                        >
-                            📆 Weekly
-                        </button>
-                        <button
-                            onClick={() => setView("monthly")}
-                            className={`px-4 py-2 rounded-lg font-medium transition-colors ${view === "monthly" ? "bg-purple-500 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                                }`}
-                        >
-                            🗓️ Monthly
-                        </button>
-                        <button
-                            onClick={() => setView("projects")}
-                            className={`px-4 py-2 rounded-lg font-medium transition-colors ${view === "projects" ? "bg-purple-500 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                                }`}
-                        >
-                            🏆 Projects
-                        </button>
-                        <button
-                            onClick={() => setView("character")}
-                            className={`px-4 py-2 rounded-lg font-medium transition-colors ${view === "character" ? "bg-purple-500 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                                }`}
-                        >
-                            👤 Character
-                        </button>
                     </div>
                 </div>
 
-                {/* Add Task Modal */}
-                {showAddTaskModal && (
-                    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-                        <div className="bg-white rounded-xl shadow-2xl p-6 max-w-md w-full">
-                            <div className="flex justify-between items-center mb-4">
-                                <h3 className="text-xl font-bold">Add Quest for {taskModalDate}</h3>
-                                <button onClick={() => setShowAddTaskModal(false)} className="text-2xl text-gray-500 hover:text-gray-700">✕</button>
+                <div className="flex flex-wrap gap-2 mb-6">
+                    <button onClick={() => setView("settings")} className={`px-6 py-3 rounded-lg font-medium transition-colors ${view === "settings" ? "bg-indigo-600 text-white" : "bg-slate-800 text-slate-300 hover:bg-slate-700"}`}>Character</button>
+                    <button onClick={() => setView("daily")} className={`px-6 py-3 rounded-lg font-medium transition-colors ${view === "daily" ? "bg-indigo-600 text-white" : "bg-slate-800 text-slate-300 hover:bg-slate-700"}`}>Daily</button>
+                    <button onClick={() => setView("weekly")} className={`px-6 py-3 rounded-lg font-medium transition-colors ${view === "weekly" ? "bg-indigo-600 text-white" : "bg-slate-800 text-slate-300 hover:bg-slate-700"}`}>Weekly</button>
+                    <button onClick={() => setView("monthly")} className={`px-6 py-3 rounded-lg font-medium transition-colors ${view === "monthly" ? "bg-indigo-600 text-white" : "bg-slate-800 text-slate-300 hover:bg-slate-700"}`}>Monthly</button>
+                    <button onClick={() => setView("allTasks")} className={`px-6 py-3 rounded-lg font-medium transition-colors ${view === "allTasks" ? "bg-indigo-600 text-white" : "bg-slate-800 text-slate-300 hover:bg-slate-700"}`}>All Quests</button>
+                    <button onClick={() => setView("projects")} className={`px-6 py-3 rounded-lg font-medium transition-colors ${view === "projects" ? "bg-indigo-600 text-white" : "bg-slate-800 text-slate-300 hover:bg-slate-700"}`}>Projects</button>
+                </div>
+
+                {showTaskForm && (
+                    <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 p-4">
+                        <div className="bg-slate-800 rounded-xl p-6 max-w-2xl w-full border border-slate-700 max-h-[90vh] overflow-y-auto">
+                            <div className="flex justify-between items-center mb-6">
+                                <h3 className="text-2xl font-semibold">{editingTask ? "Edit Quest" : "Create New Quest"}</h3>
+                                <button onClick={() => { setShowTaskForm(false); setEditingTask(null); resetTaskForm(); }} className="text-slate-400 hover:text-slate-200 text-2xl">✕</button>
                             </div>
 
                             <div className="space-y-4">
                                 <div>
-                                    <label className="block text-sm font-medium mb-1">Quest Name</label>
-                                    <input
-                                        type="text"
-                                        value={newTaskName}
-                                        onChange={(e) => setNewTaskName(e.target.value)}
-                                        placeholder="Enter quest name..."
-                                        className="w-full px-3 py-2 border rounded-lg"
-                                    />
+                                    <label className="block text-sm font-medium mb-2 text-slate-300">Quest Name</label>
+                                    <input type="text" value={newTaskName} onChange={(e) => setNewTaskName(e.target.value)} className="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-lg text-slate-100" />
                                 </div>
 
                                 <div>
-                                    <label className="block text-sm font-medium mb-1">Description</label>
-                                    <textarea
-                                        value={newTaskDesc}
-                                        onChange={(e) => setNewTaskDesc(e.target.value)}
-                                        placeholder="Quest description..."
-                                        className="w-full px-3 py-2 border rounded-lg"
-                                        rows={3}
-                                    />
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm font-medium mb-1">Project</label>
-                                    <select
-                                        value={newTaskProject}
-                                        onChange={(e) => setNewTaskProject(e.target.value)}
-                                        className="w-full px-3 py-2 border rounded-lg bg-white"
-                                    >
-                                        {projects.map(p => (
-                                            <option key={p.id} value={p.id}>{p.name}</option>
-                                        ))}
-                                    </select>
+                                    <label className="block text-sm font-medium mb-2 text-slate-300">Description</label>
+                                    <textarea value={newTaskDesc} onChange={(e) => setNewTaskDesc(e.target.value)} className="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-lg text-slate-100" rows={3} />
                                 </div>
 
                                 <div className="grid grid-cols-2 gap-4">
                                     <div>
-                                        <label className="block text-sm font-medium mb-1">Priority</label>
-                                        <select
-                                            value={newTaskPriority}
-                                            onChange={(e) => setNewTaskPriority(e.target.value as "low" | "medium" | "high")}
-                                            className="w-full px-3 py-2 border rounded-lg bg-white"
-                                        >
+                                        <label className="block text-sm font-medium mb-2 text-slate-300">XP Reward</label>
+                                        <input type="number" value={newTaskXp} onChange={(e) => setNewTaskXp(e.target.value)} className="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-lg text-slate-100" />
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-sm font-medium mb-2 text-slate-300">Priority</label>
+                                        <select value={newTaskPriority} onChange={(e) => setNewTaskPriority(e.target.value as "low" | "medium" | "high")} className="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-lg text-slate-100">
                                             <option value="low">Low</option>
                                             <option value="medium">Medium</option>
                                             <option value="high">High</option>
                                         </select>
                                     </div>
-
-                                    <div>
-                                        <label className="block text-sm font-medium mb-1">XP Reward</label>
-                                        <input
-                                            type="number"
-                                            value={newTaskXP}
-                                            onChange={(e) => setNewTaskXP(Number(e.target.value))}
-                                            className="w-full px-3 py-2 border rounded-lg"
-                                            min="1"
-                                        />
-                                    </div>
                                 </div>
 
-                                <div className="flex gap-2 pt-2">
-                                    <button
-                                        onClick={addTask}
-                                        className="flex-1 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
-                                    >
-                                        Add Quest
-                                    </button>
-                                    <button
-                                        onClick={() => setShowAddTaskModal(false)}
-                                        className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
-                                    >
-                                        Cancel
-                                    </button>
+                                <div>
+                                    <label className="block text-sm font-medium mb-2 text-slate-300">Due Date</label>
+                                    <input type="date" value={newTaskDate} onChange={(e) => setNewTaskDate(e.target.value)} className="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-lg text-slate-100" />
                                 </div>
-                            </div>
-                        </div>
-                    </div>
-                )}
 
-                {/* Daily View */}
-                {view === "daily" && (
-                    <div>
-                        <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
-                            <div className="flex items-center justify-between mb-4">
-                                <button onClick={() => changeDate(-1)} className="px-4 py-2 bg-gray-100 rounded-lg hover:bg-gray-200 text-xl">←</button>
-                                <h2 className="text-xl font-bold text-gray-800">{selectedDate}</h2>
-                                <button onClick={() => changeDate(1)} className="px-4 py-2 bg-gray-100 rounded-lg hover:bg-gray-200 text-xl">→</button>
-                            </div>
-                            <button onClick={() => setSelectedDate(today)} className="w-full py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 mb-2">
-                                Today
-                            </button>
-                            <button onClick={() => openAddTaskModal(selectedDate)} className="w-full py-2 bg-green-500 text-white rounded-lg hover:bg-green-600">
-                                ➕ Add Quest
-                            </button>
-                        </div>
+                                <div>
+                                    <label className="block text-sm font-medium mb-2 text-slate-300">Project</label>
+                                    <select value={newTaskProject ?? ""} onChange={(e) => setNewTaskProject(e.target.value || null)} className="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-lg text-slate-100">
+                                        <option value="">None</option>
+                                        {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                                    </select>
+                                </div>
 
-                        <div className="bg-white rounded-xl shadow-lg p-6">
-                            <h3 className="text-2xl font-bold text-gray-800 mb-4">Today&apos;s Quests</h3>
-                            {getTasksForDate(selectedDate).length === 0 ? (
-                                <p className="text-gray-500 text-center py-8">No quests for this day.</p>
-                            ) : (
-                                <div className="space-y-3">
-                                    {getTasksForDate(selectedDate).map(task => {
-                                        const project = projects.find(p => p.id === task.projectId);
-                                        const isExpanded = expandedTask === task.id;
-                                        const completedSubtasks = task.subtasks.filter(st => st.completed).length;
+                                <div>
+                                    <label className="block text-sm font-medium mb-2 text-slate-300">Task Class (for auto-stat progress)</label>
+                                    <select value={newTaskClass ?? ""} onChange={(e) => setNewTaskClass(e.target.value || null)} className="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-lg text-slate-100">
+                                        <option value="">None</option>
+                                        {taskClasses.map(c => <option key={c.id} value={c.id}>{c.name} ({c.statType})</option>)}
+                                    </select>
+                                </div>
 
-                                        return (
-                                            <div key={task.id} className="border rounded-lg overflow-hidden" style={{ borderLeft: `4px solid ${project?.color}` }}>
-                                                <div className="p-4 bg-white">
-                                                    <div className="flex items-start gap-3">
-                                                        <button onClick={() => toggleTask(task.id)} className="mt-1 text-2xl">
-                                                            {task.completed ? "✅" : "⭕"}
-                                                        </button>
-                                                        <div className="flex-1">
-                                                            <div className="flex items-start justify-between">
-                                                                <div className="flex-1">
-                                                                    <h4 className={`font-semibold ${task.completed ? "line-through text-gray-400" : "text-gray-800"}`}>
-                                                                        {task.name}
-                                                                    </h4>
-                                                                    <p className="text-sm text-gray-600 mt-1">{task.description}</p>
-                                                                    <div className="flex items-center gap-2 mt-2 flex-wrap">
-                                                                        <span className={`text-xs px-2 py-1 rounded-full font-medium ${getPriorityColor(task.priority)}`}>
-                                                                            {task.priority}
-                                                                        </span>
-                                                                        <span className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded-full font-medium">
-                                                                            +{task.xpReward} XP
-                                                                        </span>
-                                                                        {task.subtasks.length > 0 && (
-                                                                            <span className="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded-full">
-                                                                                {completedSubtasks}/{task.subtasks.length} subtasks
-                                                                            </span>
-                                                                        )}
-                                                                    </div>
-                                                                </div>
-                                                                <div className="flex gap-1">
-                                                                    <button
-                                                                        onClick={() => setExpandedTask(isExpanded ? null : task.id)}
-                                                                        className="ml-2 p-1 hover:bg-gray-100 rounded text-xl"
-                                                                    >
-                                                                        {isExpanded ? "▼" : "▶"}
-                                                                    </button>
-                                                                    <button
-                                                                        onClick={() => deleteTask(task.id)}
-                                                                        className="p-1 hover:bg-gray-100 rounded text-red-500"
-                                                                    >
-                                                                        ✕
-                                                                    </button>
-                                                                </div>
-                                                            </div>
+                                <div>
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                        <input type="checkbox" checked={newTaskRecurring} onChange={(e) => setNewTaskRecurring(e.target.checked)} className="w-5 h-5" />
+                                        <span className="text-sm font-medium text-slate-300">Recurring Task</span>
+                                    </label>
+                                </div>
 
-                                                            {isExpanded && (
-                                                                <div className="mt-4 pt-4 border-t">
-                                                                    <h5 className="font-medium text-sm mb-2">Subtasks</h5>
-                                                                    <div className="space-y-2 mb-3">
-                                                                        {task.subtasks.map(st => (
-                                                                            <div key={st.id} className="flex items-center gap-2 pl-4">
-                                                                                <input
-                                                                                    type="checkbox"
-                                                                                    checked={st.completed}
-                                                                                    onChange={() => toggleSubtask(task.id, st.id)}
-                                                                                    className="w-4 h-4"
-                                                                                />
-                                                                                <span className={`flex-1 text-sm ${st.completed ? "line-through text-gray-400" : ""}`}>
-                                                                                    {st.name}
-                                                                                </span>
-                                                                                <button
-                                                                                    onClick={() => deleteSubtask(task.id, st.id)}
-                                                                                    className="text-red-500 hover:text-red-700"
-                                                                                >
-                                                                                    ✕
-                                                                                </button>
-                                                                            </div>
-                                                                        ))}
-                                                                    </div>
-                                                                    <div className="flex gap-2">
-                                                                        <input
-                                                                            type="text"
-                                                                            placeholder="New subtask..."
-                                                                            className="flex-1 px-3 py-2 border rounded-lg text-sm"
-                                                                            onKeyDown={(e) => {
-                                                                                if (e.key === "Enter") {
-                                                                                    addSubtask(task.id, e.currentTarget.value);
-                                                                                    e.currentTarget.value = "";
-                                                                                }
-                                                                            }}
-                                                                        />
-                                                                    </div>
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                </div>
+                                {newTaskRecurring && (
+                                    <div className="space-y-3 pl-7 border-l-2 border-indigo-600">
+                                        <div>
+                                            <label className="block text-sm font-medium mb-2 text-slate-300">Frequency</label>
+                                            <select value={newTaskRecurringType} onChange={(e) => setNewTaskRecurringType(e.target.value as "daily" | "weekly" | "monthly")} className="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-lg text-slate-100">
+                                                <option value="daily">Daily</option>
+                                                <option value="weekly">Weekly</option>
+                                                <option value="monthly">Monthly</option>
+                                            </select>
+                                        </div>
+
+                                        {newTaskRecurringType === "weekly" && (
+                                            <div>
+                                                <label className="block text-sm font-medium mb-2 text-slate-300">Day of Week</label>
+                                                <select value={newTaskRecurringDay} onChange={(e) => setNewTaskRecurringDay(e.target.value)} className="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-lg text-slate-100">
+                                                    <option value="0">Sunday</option>
+                                                    <option value="1">Monday</option>
+                                                    <option value="2">Tuesday</option>
+                                                    <option value="3">Wednesday</option>
+                                                    <option value="4">Thursday</option>
+                                                    <option value="5">Friday</option>
+                                                    <option value="6">Saturday</option>
+                                                </select>
                                             </div>
-                                        );
-                                    })}
+                                        )}
+
+                                        {newTaskRecurringType === "monthly" && (
+                                            <div>
+                                                <label className="block text-sm font-medium mb-2 text-slate-300">Day of Month</label>
+                                                <input type="number" min="1" max="31" value={newTaskRecurringDay} onChange={(e) => setNewTaskRecurringDay(e.target.value)} className="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-lg text-slate-100" />
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
+                                <div className="flex gap-3 pt-4">
+                                    <button onClick={editingTask ? updateTask : addTask} className="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white px-6 py-3 rounded-lg font-medium">{editingTask ? "Update Quest" : "Create Quest"}</button>
+                                    <button onClick={() => { setShowTaskForm(false); setEditingTask(null); resetTaskForm(); }} className="flex-1 bg-slate-900 text-slate-300 px-6 py-3 rounded-lg font-medium">Cancel</button>
                                 </div>
-                            )}
+                            </div>
                         </div>
                     </div>
                 )}
 
-                {/* Weekly View */}
+                {view === "daily" && (
+                    <div className="bg-slate-800 rounded-xl shadow p-6 border border-slate-700">
+                        <div className="flex justify-between items-center mb-6">
+                            <h2 className="text-2xl font-semibold">Daily Quests - {currentDate}</h2>
+                            <button onClick={() => setShowTaskForm(true)} className="bg-indigo-600 text-white px-6 py-3 rounded-lg">+ New Quest</button>
+                        </div>
+
+                        <div className="space-y-3">
+                            {dailyTasks.map(task => {
+                                const completed = isTaskCompleted(task, currentDate);
+                                const project = task.projectId ? projects.find(p => p.id === task.projectId) : null;
+                                const taskClass = task.classId ? taskClasses.find(c => c.id === task.classId) : null;
+
+                                return (
+                                    <div key={task.id} className={`bg-slate-900 rounded-lg p-4 border ${completed ? "border-indigo-700 bg-slate-900/50" : "border-slate-700"}`}>
+                                        <div className="flex items-start gap-3">
+                                            <input type="checkbox" checked={completed} onChange={() => toggleTask(task, currentDate)} className="mt-1 w-5 h-5 rounded" />
+
+                                            <div className="flex-1">
+                                                <div className="flex items-center gap-2 mb-1">
+                                                    <h3 className={`text-lg font-medium ${completed ? "line-through text-slate-500" : "text-slate-100"}`}>{task.name}</h3>
+                                                    {project && <span className="px-2 py-1 rounded text-xs font-medium" style={{ background: project.color + "30", color: project.color }}>{project.name}</span>}
+                                                    {taskClass && <span className="px-2 py-1 rounded text-xs font-medium" style={{ background: taskClass.color + "30", color: taskClass.color }}>{taskClass.name}</span>}
+                                                </div>
+
+                                                {task.description && <p className="text-sm text-slate-400 mb-2">{task.description}</p>}
+
+                                                <div className="flex gap-4 text-sm text-slate-400 mb-3">
+                                                    <span className={`px-2 py-1 rounded ${task.priority === "high" ? "bg-rose-900/50 text-rose-300" : task.priority === "medium" ? "bg-amber-900/50 text-amber-300" : "bg-slate-700 text-slate-300"}`}>{task.priority}</span>
+                                                    <span>XP: {task.xpReward}</span>
+                                                    {task.statType && <span className="text-indigo-400">+{task.statType}</span>}
+                                                </div>
+
+                                                {task.subtasks.length > 0 && (
+                                                    <div className="space-y-1 mb-2">
+                                                        {task.subtasks.map(sub => (
+                                                            <label key={sub.id} className="flex items-center gap-2 text-sm cursor-pointer hover:bg-slate-800 p-1 rounded">
+                                                                <input type="checkbox" checked={sub.completed} onChange={() => toggleSubtask(task.id, sub.id)} className="w-4 h-4" />
+                                                                <span className={sub.completed ? "line-through text-slate-500" : "text-slate-300"}>{sub.name}</span>
+                                                            </label>
+                                                        ))}
+                                                    </div>
+                                                )}
+
+                                                {!completed && (
+                                                    <div className="flex gap-2">
+                                                        <button onClick={() => {
+                                                            const name = prompt(`Add subtask to "${task.name}"`);
+                                                            if (name) addSubtask(task.id, name);
+                                                        }} className="text-indigo-400 hover:text-indigo-300 text-sm">+ Add Subtask</button>
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            <div className="flex gap-2">
+                                                <button onClick={() => openEditTask(task)} className="text-slate-400 hover:text-slate-200">✏️</button>
+                                                {!task.isRecurring && <button onClick={() => deleteTask(task.id)} className="text-rose-500 hover:text-rose-400">✕</button>}
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+
+                            {dailyTasks.length === 0 && <p className="text-center text-slate-400 py-8">No quests for today. Create one to get started!</p>}
+                        </div>
+                    </div>
+                )}
+
                 {view === "weekly" && (
-                    <div>
-                        <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
-                            <div className="flex items-center justify-between mb-4">
-                                <button onClick={() => changeWeek(-1)} className="px-4 py-2 bg-gray-100 rounded-lg hover:bg-gray-200 text-xl">←</button>
-                                <h2 className="text-xl font-bold text-gray-800">Week: {weekDates[0]} - {weekDates[6]}</h2>
-                                <button onClick={() => changeWeek(1)} className="px-4 py-2 bg-gray-100 rounded-lg hover:bg-gray-200 text-xl">→</button>
+                    <div className="bg-slate-800 rounded-xl shadow p-6 border border-slate-700">
+                        <div className="flex justify-between items-center mb-6">
+                            <h2 className="text-2xl font-semibold">Weekly View</h2>
+                            <div className="flex gap-2">
+                                <button onClick={() => {
+                                    const prevWeek = new Date(currentDate);
+                                    prevWeek.setDate(prevWeek.getDate() - 7);
+                                    setCurrentDate(prevWeek.toISOString().slice(0, 10));
+                                }} className="bg-slate-900 text-slate-300 px-4 py-2 rounded-lg">← Prev</button>
+                                <button onClick={() => setCurrentDate(today)} className="bg-indigo-600 text-white px-4 py-2 rounded-lg">Today</button>
+                                <button onClick={() => {
+                                    const nextWeek = new Date(currentDate);
+                                    nextWeek.setDate(nextWeek.getDate() + 7);
+                                    setCurrentDate(nextWeek.toISOString().slice(0, 10));
+                                }} className="bg-slate-900 text-slate-300 px-4 py-2 rounded-lg">Next →</button>
                             </div>
-                            <button onClick={() => setSelectedDate(today)} className="w-full py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600">
-                                This Week
-                            </button>
                         </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-7 gap-4">
                             {weekDates.map(date => {
-                                const dayTasks = getTasksForDate(date);
+                                const tasksForDay = weeklyTasks[date] || [];
                                 const isToday = date === today;
 
                                 return (
-                                    <div key={date} className={`bg-white rounded-xl shadow-lg overflow-hidden ${isToday ? 'ring-2 ring-blue-500' : ''}`}>
-                                        <div className={`p-3 ${isToday ? 'bg-blue-500 text-white' : 'bg-gray-100'}`}>
-                                            <div className="text-center">
-                                                <div className="font-bold">{getDayName(date)}</div>
-                                                <div className="text-sm">{date.slice(5)}</div>
-                                            </div>
+                                    <div key={date} className={`bg-slate-900 rounded-lg p-4 border ${isToday ? "border-indigo-600" : "border-slate-700"}`}>
+                                        <div className="text-center mb-3">
+                                            <p className="text-sm text-slate-400">{getDayName(date)}</p>
+                                            <p className="text-lg font-semibold">{date.slice(8, 10)}</p>
                                         </div>
 
-                                        <div className="p-3">
-                                            <button
-                                                onClick={() => openAddTaskModal(date)}
-                                                className="w-full py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 text-sm mb-3"
-                                            >
-                                                ➕ Add
-                                            </button>
+                                        <div className="space-y-2">
+                                            {tasksForDay.map(task => {
+                                                const completed = isTaskCompleted(task, date);
+                                                const taskClass = task.classId ? taskClasses.find(c => c.id === task.classId) : null;
 
-                                            <div className="space-y-2">
-                                                {dayTasks.length === 0 ? (
-                                                    <p className="text-gray-400 text-xs text-center py-2">No quests</p>
-                                                ) : (
-                                                    dayTasks.map(task => {
-                                                        const project = projects.find(p => p.id === task.projectId);
-                                                        return (
-                                                            <div
-                                                                key={task.id}
-                                                                className="p-2 rounded border text-xs"
-                                                                style={{ borderLeft: `3px solid ${project?.color}` }}
-                                                            >
-                                                                <div className="flex items-start gap-1">
-                                                                    <button onClick={() => toggleTask(task.id)} className="text-base">
-                                                                        {task.completed ? "✅" : "⭕"}
-                                                                    </button>
-                                                                    <div className="flex-1 min-w-0">
-                                                                        <p className={`font-medium truncate ${task.completed ? 'line-through text-gray-400' : ''}`}>
-                                                                            {task.name}
-                                                                        </p>
-                                                                        <span className={`inline-block px-1 py-0.5 rounded text-xs ${getPriorityColor(task.priority)}`}>
-                                                                            {task.priority}
-                                                                        </span>
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-                                                        );
-                                                    })
-                                                )}
-                                            </div>
+                                                return (
+                                                    <div key={task.id} className={`bg-slate-800 rounded p-2 border ${completed ? "border-indigo-700" : "border-slate-700"} text-xs`}>
+                                                        <div className="flex items-center gap-2 mb-1">
+                                                            <input type="checkbox" checked={completed} onChange={() => toggleTask(task, date)} className="w-4 h-4" />
+                                                            <span className={`flex-1 ${completed ? "line-through text-slate-500" : "text-slate-200"}`}>{task.name}</span>
+                                                        </div>
+                                                        {taskClass && <div className="text-xs px-1.5 py-0.5 rounded inline-block" style={{ background: taskClass.color + "30", color: taskClass.color }}>{taskClass.name}</div>}
+                                                    </div>
+                                                );
+                                            })}
                                         </div>
                                     </div>
                                 );
@@ -657,173 +706,52 @@ export default function App() {
                     </div>
                 )}
 
-                {/* Monthly View */}
                 {view === "monthly" && (
-                    <div>
-                        <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
-                            <div className="flex items-center justify-between mb-4">
-                                <button onClick={() => changeMonth(-1)} className="px-4 py-2 bg-gray-100 rounded-lg hover:bg-gray-200 text-xl">←</button>
-                                <h2 className="text-xl font-bold text-gray-800">{getMonthName(selectedDate)} {new Date(selectedDate).getFullYear()}</h2>
-                                <button onClick={() => changeMonth(1)} className="px-4 py-2 bg-gray-100 rounded-lg hover:bg-gray-200 text-xl">→</button>
-                            </div>
-                            <button onClick={() => setSelectedDate(today)} className="w-full py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600">
-                                This Month
-                            </button>
-                        </div>
-
-                        <div className="bg-white rounded-xl shadow-lg p-4">
-                            <div className="grid grid-cols-7 gap-2">
-                                {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(day => (
-                                    <div key={day} className="text-center font-bold text-sm py-2 bg-gray-100 rounded">
-                                        {day}
-                                    </div>
-                                ))}
-
-                                {monthDates.map(date => {
-                                    const dayTasks = getTasksForDate(date);
-                                    const isToday = date === today;
-                                    const completedCount = dayTasks.filter(t => t.completed).length;
-
-                                    return (
-                                        <div
-                                            key={date}
-                                            className={`min-h-24 p-2 border rounded-lg ${isToday ? 'ring-2 ring-blue-500 bg-blue-50' : 'bg-white hover:bg-gray-50'} cursor-pointer`}
-                                            onClick={() => openAddTaskModal(date)}
-                                        >
-                                            <div className="text-sm font-semibold mb-1">{new Date(date).getDate()}</div>
-                                            <div className="space-y-1">
-                                                {dayTasks.slice(0, 2).map(task => {
-                                                    const project = projects.find(p => p.id === task.projectId);
-                                                    return (
-                                                        <div
-                                                            key={task.id}
-                                                            className="text-xs p-1 rounded truncate"
-                                                            style={{ backgroundColor: project?.color + '20', borderLeft: `2px solid ${project?.color}` }}
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                toggleTask(task.id);
-                                                            }}
-                                                        >
-                                                            {task.completed ? '✓' : '○'} {task.name}
-                                                        </div>
-                                                    );
-                                                })}
-                                                {dayTasks.length > 2 && (
-                                                    <div className="text-xs text-gray-500 text-center">
-                                                        +{dayTasks.length - 2} more
-                                                    </div>
-                                                )}
-                                                {dayTasks.length > 0 && (
-                                                    <div className="text-xs text-gray-600 mt-1">
-                                                        {completedCount}/{dayTasks.length} done
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
-                                    );
-                                })}
+                    <div className="bg-slate-800 rounded-xl shadow p-6 border border-slate-700">
+                        <div className="flex justify-between items-center mb-6">
+                            <h2 className="text-2xl font-semibold">Monthly View - {currentDate.slice(0, 7)}</h2>
+                            <div className="flex gap-2">
+                                <button onClick={() => {
+                                    const [year, month] = currentDate.split("-").map(Number);
+                                    const prevMonth = new Date(year, month - 2, 1);
+                                    setCurrentDate(prevMonth.toISOString().slice(0, 10));
+                                }} className="bg-slate-900 text-slate-300 px-4 py-2 rounded-lg">← Prev</button>
+                                <button onClick={() => setCurrentDate(today)} className="bg-indigo-600 text-white px-4 py-2 rounded-lg">Today</button>
+                                <button onClick={() => {
+                                    const [year, month] = currentDate.split("-").map(Number);
+                                    const nextMonth = new Date(year, month, 1);
+                                    setCurrentDate(nextMonth.toISOString().slice(0, 10));
+                                }} className="bg-slate-900 text-slate-300 px-4 py-2 rounded-lg">Next →</button>
                             </div>
                         </div>
-                    </div>
-                )}
 
-                {/* Projects View */}
-                {view === "projects" && (
-                    <div>
-                        <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
-                            <h3 className="text-xl font-bold text-gray-800 mb-4">Add New Project</h3>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                                <input
-                                    type="text"
-                                    value={newProjectName}
-                                    onChange={(e) => setNewProjectName(e.target.value)}
-                                    placeholder="Project name..."
-                                    className="px-4 py-2 border rounded-lg"
-                                />
-                                <div className="flex gap-2">
-                                    <input
-                                        type="color"
-                                        value={newProjectColor}
-                                        onChange={(e) => setNewProjectColor(e.target.value)}
-                                        className="w-12 h-10 border rounded-lg"
-                                    />
-                                    <input
-                                        type="text"
-                                        value={newProjectColor}
-                                        onChange={(e) => setNewProjectColor(e.target.value)}
-                                        className="flex-1 px-4 py-2 border rounded-lg"
-                                    />
-                                </div>
-                            </div>
-                            <textarea
-                                value={newProjectDesc}
-                                onChange={(e) => setNewProjectDesc(e.target.value)}
-                                placeholder="Project description..."
-                                className="w-full px-4 py-2 border rounded-lg mb-4"
-                                rows={2}
-                            />
-                            <button onClick={addProject} className="w-full py-2 bg-green-500 text-white rounded-lg hover:bg-green-600">
-                                ➕ Add Project
-                            </button>
-                        </div>
+                        <div className="grid grid-cols-7 gap-2">
+                            {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map(day => (
+                                <div key={day} className="text-center text-sm font-semibold text-slate-400 pb-2">{day}</div>
+                            ))}
 
-                        <div className="space-y-4">
-                            {projects.map(project => {
-                                const projectTasks = getTasksByProject(project.id);
-                                const completedTasks = projectTasks.filter(t => t.completed).length;
+                            {monthDates.map((date, idx) => {
+                                if (!date) return <div key={idx} className="aspect-square"></div>;
+
+                                const tasksForDay = monthlyTasks[date] || [];
+                                const isToday = date === today;
 
                                 return (
-                                    <div key={project.id} className="bg-white rounded-xl shadow-lg overflow-hidden">
-                                        <div className="p-6" style={{ borderLeft: `6px solid ${project.color}` }}>
-                                            <div className="flex items-start justify-between mb-4">
-                                                <div className="flex-1">
-                                                    <h3 className="text-2xl font-bold text-gray-800">{project.name}</h3>
-                                                    <p className="text-gray-600 mt-1">{project.description}</p>
-                                                    <p className="text-sm text-gray-500 mt-2">
-                                                        Progress: {completedTasks}/{projectTasks.length} quests completed
-                                                    </p>
-                                                </div>
-                                                <button
-                                                    onClick={() => deleteProject(project.id)}
-                                                    className="text-red-500 hover:text-red-700 ml-4 text-xl"
-                                                >
-                                                    ✕
-                                                </button>
-                                            </div>
+                                    <div key={date} className={`bg-slate-900 rounded-lg p-2 border ${isToday ? "border-indigo-600" : "border-slate-700"} aspect-square overflow-hidden`}>
+                                        <p className="text-center text-sm font-semibold mb-1">{date.slice(8, 10)}</p>
+                                        <div className="space-y-1">
+                                            {tasksForDay.slice(0, 3).map(task => {
+                                                const completed = isTaskCompleted(task, date);
+                                                const taskClass = task.classId ? taskClasses.find(c => c.id === task.classId) : null;
 
-                                            <div className="space-y-2">
-                                                <h4 className="font-semibold">Quests ({projectTasks.length})</h4>
-                                                {projectTasks.length === 0 ? (
-                                                    <p className="text-gray-500 text-sm italic">No quests in this project</p>
-                                                ) : (
-                                                    projectTasks.map(task => (
-                                                        <div key={task.id} className="border rounded-lg p-3 bg-gray-50">
-                                                            <div className="flex items-start gap-2">
-                                                                <button onClick={() => toggleTask(task.id)} className="text-xl">
-                                                                    {task.completed ? "✅" : "⭕"}
-                                                                </button>
-                                                                <div className="flex-1">
-                                                                    <p className={`font-medium ${task.completed ? "line-through text-gray-400" : ""}`}>
-                                                                        {task.name}
-                                                                    </p>
-                                                                    <div className="flex items-center gap-2 mt-1 flex-wrap">
-                                                                        <span className="text-xs text-gray-500">{task.dueDate}</span>
-                                                                        <span className={`text-xs px-2 py-0.5 rounded-full ${getPriorityColor(task.priority)}`}>
-                                                                            {task.priority}
-                                                                        </span>
-                                                                        <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">
-                                                                            +{task.xpReward} XP
-                                                                        </span>
-                                                                    </div>
-                                                                </div>
-                                                                <button onClick={() => deleteTask(task.id)} className="text-red-500 hover:text-red-700">
-                                                                    ✕
-                                                                </button>
-                                                            </div>
-                                                        </div>
-                                                    ))
-                                                )}
-                                            </div>
+                                                return (
+                                                    <div key={task.id} className={`text-[10px] px-1 py-0.5 rounded ${completed ? "bg-indigo-900/50 line-through" : "bg-slate-800"}`}>
+                                                        <div className="truncate">{task.name}</div>
+                                                        {taskClass && <div className="text-[8px] truncate" style={{ color: taskClass.color }}>{taskClass.name}</div>}
+                                                    </div>
+                                                );
+                                            })}
+                                            {tasksForDay.length > 3 && <p className="text-[10px] text-slate-400">+{tasksForDay.length - 3}</p>}
                                         </div>
                                     </div>
                                 );
@@ -832,121 +760,249 @@ export default function App() {
                     </div>
                 )}
 
-                {/* Character View */}
-                {view === "character" && (
-                    <div className="bg-white rounded-xl shadow-lg p-6">
-                        <div className="text-center mb-8">
-                            <div className="w-32 h-32 mx-auto mb-4 bg-gradient-to-br from-purple-400 to-blue-500 rounded-full flex items-center justify-center text-6xl">
-                                👤
-                            </div>
-                            {editingCharacter ? (
-                                <div className="flex items-center justify-center gap-2">
-                                    <input
-                                        type="text"
-                                        value={newCharacterName}
-                                        onChange={(e) => setNewCharacterName(e.target.value)}
-                                        className="px-4 py-2 border rounded-lg text-center"
-                                    />
-                                    <button onClick={updateCharacterName} className="px-4 py-2 bg-blue-500 text-white rounded-lg">
-                                        Save
-                                    </button>
-                                </div>
-                            ) : (
-                                <h2 className="text-3xl font-bold text-gray-800 mb-2">
-                                    {character.name}
-                                    <button onClick={() => setEditingCharacter(true)} className="ml-2 text-sm text-blue-500 hover:text-blue-700">
-                                        Edit
-                                    </button>
-                                </h2>
-                            )}
+                {view === "allTasks" && (
+                    <div className="bg-slate-800 rounded-xl shadow p-6 border border-slate-700">
+                        <div className="flex justify-between items-center mb-6">
+                            <h2 className="text-2xl font-semibold">All Quests</h2>
+                            <button onClick={() => setShowTaskForm(true)} className="bg-indigo-600 text-white px-6 py-3 rounded-lg">+ New Quest</button>
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                            <div className="bg-gradient-to-br from-yellow-100 to-yellow-200 rounded-xl p-6 text-center">
-                                <div className="text-5xl mb-2">🏆</div>
-                                <p className="text-4xl font-bold text-yellow-800">{character.level}</p>
-                                <p className="text-yellow-700 font-medium">Level</p>
-                            </div>
-                            <div className="bg-gradient-to-br from-purple-100 to-purple-200 rounded-xl p-6 text-center">
-                                <div className="text-5xl mb-2">⭐</div>
-                                <p className="text-4xl font-bold text-purple-800">{character.xp}</p>
-                                <p className="text-purple-700 font-medium">Current XP</p>
-                            </div>
-                            <div className="bg-gradient-to-br from-blue-100 to-blue-200 rounded-xl p-6 text-center">
-                                <div className="text-5xl mb-2">⚔️</div>
-                                <p className="text-4xl font-bold text-blue-800">{character.totalXp}</p>
-                                <p className="text-blue-700 font-medium">Total XP</p>
-                            </div>
-                        </div>
+                        <div className="space-y-3">
+                            {tasks.map(task => {
+                                const project = task.projectId ? projects.find(p => p.id === task.projectId) : null;
+                                const taskClass = task.classId ? taskClasses.find(c => c.id === task.classId) : null;
 
-                        <div className="bg-gray-50 rounded-xl p-6 mb-8">
-                            <h3 className="text-xl font-bold text-gray-800 mb-4">Progress to Next Level</h3>
-                            <div className="mb-2">
-                                <div className="flex justify-between text-sm mb-1">
-                                    <span>Level {character.level}</span>
-                                    <span>Level {character.level + 1}</span>
+                                return (
+                                    <div key={task.id} className={`bg-slate-900 rounded-lg p-4 border ${task.completed ? "border-indigo-700 bg-slate-900/50" : "border-slate-700"}`}>
+                                        <div className="flex items-start gap-3">
+                                            {!task.isRecurring && <input type="checkbox" checked={task.completed} onChange={() => toggleTask(task, task.dueDate)} className="mt-1 w-5 h-5 rounded" />}
+
+                                            <div className="flex-1">
+                                                <div className="flex items-center gap-2 mb-1">
+                                                    <h3 className={`text-lg font-medium ${task.completed ? "line-through text-slate-500" : "text-slate-100"}`}>{task.name}</h3>
+                                                    {project && <span className="px-2 py-1 rounded text-xs font-medium" style={{ background: project.color + "30", color: project.color }}>{project.name}</span>}
+                                                    {taskClass && <span className="px-2 py-1 rounded text-xs font-medium" style={{ background: taskClass.color + "30", color: taskClass.color }}>{taskClass.name}</span>}
+                                                    {task.isRecurring && <span className="px-2 py-1 rounded text-xs font-medium bg-indigo-900/50 text-indigo-300">Recurring</span>}
+                                                </div>
+
+                                                {task.description && <p className="text-sm text-slate-400 mb-2">{task.description}</p>}
+
+                                                <div className="flex gap-4 text-sm text-slate-400">
+                                                    <span className={`px-2 py-1 rounded ${task.priority === "high" ? "bg-rose-900/50 text-rose-300" : task.priority === "medium" ? "bg-amber-900/50 text-amber-300" : "bg-slate-700 text-slate-300"}`}>{task.priority}</span>
+                                                    <span>Due: {task.dueDate}</span>
+                                                    <span>XP: {task.xpReward}</span>
+                                                    {task.statType && <span className="text-indigo-400">+{task.statType}</span>}
+                                                </div>
+                                            </div>
+
+                                            <div className="flex gap-2">
+                                                <button onClick={() => openEditTask(task)} className="text-slate-400 hover:text-slate-200">✏️</button>
+                                                <button onClick={() => deleteTask(task.id)} className="text-rose-500 hover:text-rose-400">✕</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+
+                            {tasks.length === 0 && <p className="text-center text-slate-400 py-8">No quests yet. Create one to get started!</p>}
+                        </div>
+                    </div>
+                )}
+
+                {view === "settings" && (
+                    <div className="space-y-6">
+                        <div className="bg-slate-800 rounded-xl shadow p-6 border border-slate-700">
+                            <h2 className="text-2xl font-semibold mb-6">Character</h2>
+
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="block text-sm font-medium mb-2 text-slate-300">Hero Name</label>
+                                    <input type="text" value={character.name} onChange={(e) => setCharacter({ ...character, name: e.target.value })} className="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-lg text-slate-100" />
                                 </div>
-                                <div className="w-full bg-gray-300 rounded-full h-6 overflow-hidden">
-                                    <div
-                                        className="h-full bg-gradient-to-r from-green-400 to-blue-500 transition-all duration-500 flex items-center justify-center text-white text-xs font-bold"
-                                        style={{ width: `${xpProgress}%` }}
-                                    >
-                                        {Math.round(xpProgress)}%
+
+                                <div>
+                                    <label className="block text-sm font-medium mb-2 text-slate-300">Avatar</label>
+                                    <div className="flex gap-3 flex-wrap">
+                                        {AVATARS.map(avatar => (
+                                            <button key={avatar} onClick={() => setCharacter({ ...character, avatar })} className={`text-4xl p-3 rounded-lg transition-all ${character.avatar === avatar ? "bg-indigo-600 scale-110" : "bg-slate-900 hover:bg-slate-700"}`}>{avatar}</button>
+                                        ))}
                                     </div>
                                 </div>
-                                <p className="text-center mt-2 text-sm text-gray-600">
-                                    {xpForNextLevel - character.xp} XP needed to level up
-                                </p>
                             </div>
                         </div>
 
-                        <div className="bg-blue-50 rounded-xl p-6 mb-8">
-                            <h3 className="text-xl font-bold text-gray-800 mb-4">Statistics</h3>
+                        <div className="bg-slate-800 rounded-xl shadow p-6 border border-slate-700">
+                            <h2 className="text-2xl font-semibold mb-6">Stats & Progression</h2>
+
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                                <div className="bg-slate-800 rounded-lg p-4 border border-slate-700">
+                                    <div className="flex justify-between items-center mb-2">
+                                        <div>
+                                            <p className="text-sm text-slate-300">Strength</p>
+                                            <p className="text-2xl font-bold text-slate-100">{character.strength}</p>
+                                        </div>
+                                        <div className="text-right">
+                                            <div className="text-sm text-slate-300">Unspent: {character.unspentPoints}</div>
+                                            <button onClick={() => assignPointToStat("strength")} disabled={character.unspentPoints <= 0} className="mt-2 px-3 py-1 bg-indigo-600 rounded disabled:opacity-40">+1</button>
+                                        </div>
+                                    </div>
+                                    <div className="mt-3">
+                                        <p className="text-xs text-slate-400 mb-1">Progress to next stat point</p>
+                                        <ProgressBar value={statProgress.strength} max={tasksNeededForStat(character.strength)} />
+                                        <p className="text-xs text-slate-400 mt-1">{statProgress.strength}/{tasksNeededForStat(character.strength)} tasks</p>
+                                    </div>
+                                </div>
+
+                                <div className="bg-slate-800 rounded-lg p-4 border border-slate-700">
+                                    <div className="flex justify-between items-center mb-2">
+                                        <div>
+                                            <p className="text-sm text-slate-300">Dexterity</p>
+                                            <p className="text-2xl font-bold text-slate-100">{character.dexterity}</p>
+                                        </div>
+                                        <div className="text-right">
+                                            <div className="text-sm text-slate-300">Unspent: {character.unspentPoints}</div>
+                                            <button onClick={() => assignPointToStat("dexterity")} disabled={character.unspentPoints <= 0} className="mt-2 px-3 py-1 bg-indigo-600 rounded disabled:opacity-40">+1</button>
+                                        </div>
+                                    </div>
+                                    <div className="mt-3">
+                                        <p className="text-xs text-slate-400 mb-1">Progress to next stat point</p>
+                                        <ProgressBar value={statProgress.dexterity} max={tasksNeededForStat(character.dexterity)} />
+                                        <p className="text-xs text-slate-400 mt-1">{statProgress.dexterity}/{tasksNeededForStat(character.dexterity)} tasks</p>
+                                    </div>
+                                </div>
+
+                                <div className="bg-slate-800 rounded-lg p-4 border border-slate-700">
+                                    <div className="flex justify-between items-center mb-2">
+                                        <div>
+                                            <p className="text-sm text-slate-300">Intelligence</p>
+                                            <p className="text-2xl font-bold text-slate-100">{character.intelligence}</p>
+                                        </div>
+                                        <div className="text-right">
+                                            <div className="text-sm text-slate-300">Unspent: {character.unspentPoints}</div>
+                                            <button onClick={() => assignPointToStat("intelligence")} disabled={character.unspentPoints <= 0} className="mt-2 px-3 py-1 bg-indigo-600 rounded disabled:opacity-40">+1</button>
+                                        </div>
+                                    </div>
+                                    <div className="mt-3">
+                                        <p className="text-xs text-slate-400 mb-1">Progress to next stat point</p>
+                                        <ProgressBar value={statProgress.intelligence} max={tasksNeededForStat(character.intelligence)} />
+                                        <p className="text-xs text-slate-400 mt-1">{statProgress.intelligence}/{tasksNeededForStat(character.intelligence)} tasks</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="text-sm text-slate-400">Punkty za poziom: po awansie otrzymujesz 1 punkt do rozdania. Zadania przypisane do klasy zwiększają postęp statystyk automatycznie (patrz paski postępu).</div>
+                        </div>
+
+                        <div className="bg-rose-900 rounded-xl p-6 border border-rose-700">
+                            <h3 className="text-xl font-semibold text-rose-100 mb-2">Danger Zone</h3>
+                            <p className="text-rose-200 text-sm mb-4">Reset all progress and start fresh. This action cannot be undone.</p>
+                            <button onClick={() => setShowResetConfirm(true)} className="bg-rose-700 hover:bg-rose-600 text-white px-6 py-3 rounded-lg">Reset All Progress</button>
+                        </div>
+
+                        {showResetConfirm && (
+                            <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 p-4">
+                                <div className="bg-slate-800 rounded-xl p-6 max-w-md w-full border border-slate-700">
+                                    <h3 className="text-2xl font-semibold mb-4 text-rose-400">⚠️ Confirm Reset</h3>
+                                    <p className="text-slate-300 mb-6">Are you sure you want to reset all progress? This will delete all tasks, projects, classes and stats.</p>
+                                    <div className="flex gap-3">
+                                        <button onClick={resetProgress} className="flex-1 bg-rose-700 hover:bg-rose-600 text-white px-6 py-3 rounded-lg">Yes, Reset Everything</button>
+                                        <button onClick={() => setShowResetConfirm(false)} className="flex-1 bg-slate-900 text-slate-300 px-6 py-3 rounded-lg">Cancel</button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {view === "projects" && (
+                    <div className="bg-slate-800 rounded-xl shadow p-6 border border-slate-700">
+                        <h2 className="text-2xl font-semibold mb-6">Projects & Classes</h2>
+
+                        <div className="bg-slate-900 rounded-lg p-4 mb-6 border border-slate-700">
+                            <h3 className="text-lg font-semibold mb-3">Create New Project</h3>
                             <div className="space-y-3">
-                                <div className="flex justify-between">
-                                    <span className="text-gray-700">Completed Quests:</span>
-                                    <span className="font-bold">{tasks.filter(t => t.completed).length}</span>
-                                </div>
-                                <div className="flex justify-between">
-                                    <span className="text-gray-700">Active Quests:</span>
-                                    <span className="font-bold">{tasks.filter(t => !t.completed).length}</span>
-                                </div>
-                                <div className="flex justify-between">
-                                    <span className="text-gray-700">Total Projects:</span>
-                                    <span className="font-bold">{projects.length}</span>
-                                </div>
-                                <div className="flex justify-between">
-                                    <span className="text-gray-700">Average XP per Quest:</span>
-                                    <span className="font-bold">
-                                        {tasks.length > 0 ? Math.round(tasks.reduce((sum, t) => sum + t.xpReward, 0) / tasks.length) : 0}
-                                    </span>
+                                <input type="text" placeholder="Project name" value={newProjectName} onChange={(e) => setNewProjectName(e.target.value)} className="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-lg text-slate-100" />
+                                <input type="text" placeholder="Description" value={newProjectDesc} onChange={(e) => setNewProjectDesc(e.target.value)} className="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-lg text-slate-100" />
+                                <div className="flex gap-3">
+                                    <input type="color" value={newProjectColor} onChange={(e) => setNewProjectColor(e.target.value)} className="w-16 h-12 rounded" />
+                                    <button onClick={addProject} className="flex-1 bg-indigo-600 text-white px-6 py-3 rounded-lg">Create Project</button>
                                 </div>
                             </div>
                         </div>
 
-                        <div className="bg-green-50 rounded-xl p-6">
-                            <h3 className="text-xl font-bold text-gray-800 mb-4">Achievements</h3>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div className={`p-4 rounded-lg border-2 ${character.totalXp >= 100 ? 'bg-yellow-100 border-yellow-400' : 'bg-gray-100 border-gray-300 opacity-50'}`}>
-                                    <div className="text-4xl mb-2">{character.totalXp >= 100 ? '🏆' : '🔒'}</div>
-                                    <p className="font-bold">First Steps</p>
-                                    <p className="text-sm text-gray-600">Earn 100 total XP</p>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                            {projects.map(project => {
+                                const projectTasks = tasks.filter(t => t.projectId === project.id);
+                                const completedTasks = projectTasks.filter(t => t.completed).length;
+                                return (
+                                    <div key={project.id} className="bg-slate-900 rounded-lg p-6 border-l-4 border border-slate-700" style={{ borderLeftColor: project.color }}>
+                                        <div className="flex justify-between items-start mb-4">
+                                            <div>
+                                                <h3 className="text-xl font-semibold" style={{ color: project.color }}>{project.name}</h3>
+                                                <p className="text-sm text-slate-300">{project.description}</p>
+                                            </div>
+                                            <button onClick={() => deleteProject(project.id)} className="text-rose-500 hover:text-rose-400">✕</button>
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <div className="flex justify-between text-sm text-slate-300"><span>Total Quests:</span><span className="text-slate-100">{projectTasks.length}</span></div>
+                                            <div className="flex justify-between text-sm text-slate-300"><span>Completed:</span><span className="text-slate-100">{completedTasks}</span></div>
+                                            <div className="flex justify-between text-sm text-slate-300"><span>Active:</span><span className="text-slate-100">{projectTasks.length - completedTasks}</span></div>
+                                            {projectTasks.length > 0 && (
+                                                <div className="mt-3">
+                                                    <div className="w-full bg-slate-800 rounded-full h-2 overflow-hidden border border-slate-700">
+                                                        <div className="h-full transition-all duration-500" style={{ width: `${(completedTasks / projectTasks.length) * 100}%`, background: project.color }} />
+                                                    </div>
+                                                    <p className="text-center text-xs text-slate-400 mt-1">{Math.round((completedTasks / projectTasks.length) * 100)}% Complete</p>
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        <div className="mt-4 pt-4 border-t border-slate-700">
+                                            <h4 className="text-sm font-semibold mb-2 text-slate-300">Recent Quests</h4>
+                                            <div className="space-y-1">
+                                                {projectTasks.slice(0, 3).map(task => (
+                                                    <div key={task.id} className="flex items-center gap-2">
+                                                        <span className={`w-2 h-2 rounded-full ${task.completed ? 'bg-indigo-600' : 'bg-slate-600'}`} />
+                                                        <span className={`text-xs ${task.completed ? 'line-through text-slate-500' : 'text-slate-300'}`}>{task.name}</span>
+                                                    </div>
+                                                ))}
+                                                {projectTasks.length > 3 && <p className="text-xs text-slate-400">+{projectTasks.length - 3} more...</p>}
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+
+                        <div className="bg-slate-900 rounded-lg p-4 border border-slate-700">
+                            <h3 className="text-lg font-semibold mb-3">Task Classes (map to stats)</h3>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                                <input type="text" placeholder="Class name (e.g. Running)" value={newClassName} onChange={(e) => setNewClassName(e.target.value)} className="px-4 py-3 bg-slate-800 border border-slate-700 rounded-lg text-slate-100" />
+                                <select value={newClassStat} onChange={(e) => setNewClassStat(e.target.value as "strength" | "dexterity" | "intelligence")} className="px-4 py-3 bg-slate-800 border border-slate-700 rounded-lg text-slate-100">
+                                    <option value="strength">Strength</option>
+                                    <option value="dexterity">Dexterity</option>
+                                    <option value="intelligence">Intelligence</option>
+                                </select>
+                                <div className="flex gap-2 items-center">
+                                    <input type="color" value={newClassColor} onChange={(e) => setNewClassColor(e.target.value)} className="w-16 h-12 rounded" />
+                                    <button onClick={addTaskClass} className="flex-1 bg-indigo-600 text-white px-4 py-2 rounded-lg">Add Class</button>
                                 </div>
-                                <div className={`p-4 rounded-lg border-2 ${character.level >= 5 ? 'bg-yellow-100 border-yellow-400' : 'bg-gray-100 border-gray-300 opacity-50'}`}>
-                                    <div className="text-4xl mb-2">{character.level >= 5 ? '⭐' : '🔒'}</div>
-                                    <p className="font-bold">Rising Star</p>
-                                    <p className="text-sm text-gray-600">Reach Level 5</p>
-                                </div>
-                                <div className={`p-4 rounded-lg border-2 ${tasks.filter(t => t.completed).length >= 10 ? 'bg-yellow-100 border-yellow-400' : 'bg-gray-100 border-gray-300 opacity-50'}`}>
-                                    <div className="text-4xl mb-2">{tasks.filter(t => t.completed).length >= 10 ? '✅' : '🔒'}</div>
-                                    <p className="font-bold">Quest Master</p>
-                                    <p className="text-sm text-gray-600">Complete 10 quests</p>
-                                </div>
-                                <div className={`p-4 rounded-lg border-2 ${projects.length >= 3 ? 'bg-yellow-100 border-yellow-400' : 'bg-gray-100 border-gray-300 opacity-50'}`}>
-                                    <div className="text-4xl mb-2">{projects.length >= 3 ? '⚔️' : '🔒'}</div>
-                                    <p className="font-bold">Ambitious</p>
-                                    <p className="text-sm text-gray-600">Create 3 projects</p>
-                                </div>
+                            </div>
+
+                            <div className="space-y-2">
+                                {taskClasses.map(c => (
+                                    <div key={c.id} className="flex items-center justify-between bg-slate-800 p-3 rounded border border-slate-700">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-8 h-8 rounded-full flex items-center justify-center" style={{ background: c.color }}>{c.name[0]}</div>
+                                            <div>
+                                                <div className="font-medium text-slate-100">{c.name}</div>
+                                                <div className="text-xs text-slate-400">{c.statType}</div>
+                                            </div>
+                                        </div>
+                                        <button onClick={() => deleteTaskClass(c.id)} className="text-rose-500 hover:text-rose-400">Delete</button>
+                                    </div>
+                                ))}
                             </div>
                         </div>
                     </div>
