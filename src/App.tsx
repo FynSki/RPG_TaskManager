@@ -201,7 +201,6 @@ export default function App() {
 
     const [showTaskModal, setShowTaskModal] = useState(false);
     const [editingTask, setEditingTask] = useState<Task | null>(null);
-    const [taskModalDate, setTaskModalDate] = useState<string | null>(null);
 
     const [taskName, setTaskName] = useState("");
     const [taskDesc, setTaskDesc] = useState("");
@@ -355,8 +354,8 @@ export default function App() {
     }
 
     function openTaskModal(date: string | null = null) {
-        setTaskModalDate(date);
-        setTaskDueDate(date || selectedDate);
+        const targetDate = date || selectedDate;
+        setTaskDueDate(targetDate);
         setShowTaskModal(true);
     }
 
@@ -374,7 +373,6 @@ export default function App() {
         setTaskRecurringDay(1);
         setTaskClass(null);
         setTaskSkill(null);
-        setTaskModalDate(null);
     }
 
     function saveTask() {
@@ -645,10 +643,10 @@ export default function App() {
                 </header>
 
                 <nav className="mb-6 flex flex-wrap gap-2 justify-center">
-                    {["daily", "weekly", "monthly", "all", "projects", "settings"].map((v) => (
+                    {(["daily", "weekly", "monthly", "all", "projects", "settings"] as const).map((v) => (
                         <button
                             key={v}
-                            onClick={() => setView(v as any)}
+                            onClick={() => setView(v)}
                             className={`px-6 py-3 rounded-lg font-medium transition ${view === v
                                     ? "bg-indigo-600 text-white shadow-lg"
                                     : "bg-slate-800 text-slate-300 hover:bg-slate-700 border border-slate-700"
