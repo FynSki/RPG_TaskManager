@@ -152,6 +152,14 @@ function getDayName(dateStr: string): string {
     return days[date.getDay()];
 }
 
+// NOWA FUNKCJA: Formatowanie daty do DD.MM
+function formatDateDayMonth(dateStr: string): string {
+    const date = new Date(dateStr);
+    const day = date.getDate().toString().padStart(2, "0");
+    const month = (date.getMonth() + 1).toString().padStart(2, "0");
+    return `${day}.${month}`;
+}
+
 type ProgressBarProps = {
     value: number;
     max: number;
@@ -160,411 +168,985 @@ type ProgressBarProps = {
 function ProgressBar({ value, max }: ProgressBarProps) {
     const pct = Math.min((value / max) * 100, 100);
     return (
-        <div className="w-full bg-slate-800 rounded-full h-3 overflow-hidden border border-slate-700">
+        <div className="relative w-full bg-slate-700 rounded-full h-3 overflow-hidden border border-slate-600">
             <div
-                className="h-full bg-gradient-to-r from-indigo-600 to-indigo-500 transition-all duration-500"
+                className="h-full bg-gradient-to-r from-indigo-500 to-indigo-400 transition-all duration-500"
                 style={{ width: `${pct}%` }}
             />
         </div>
     );
 }
 
-/* -----------------------------
-   App
-   ----------------------------- */
-
 export default function App() {
-    // reference React so TS eslint doesn't mark it unused (we need React in scope for JSX)
-    useEffect(() => {
-        void React;
-    }, []);
-
     const [character, setCharacter] = usePersistedState<Character>("character", {
         name: "Hero",
         level: 1,
         xp: 0,
         totalXp: 0,
         avatar: AVATARS[0],
-        strength: 0,
-        dexterity: 0,
-        intelligence: 0,
+        strength: 1,
+        dexterity: 1,
+        intelligence: 1,
         unspentPoints: 0,
     });
 
     const [tasks, setTasks] = usePersistedState<Task[]>("tasks", []);
     const [projects, setProjects] = usePersistedState<Project[]>("projects", []);
+    const [completions, setCompletions] = usePersistedState<RecurringTaskCompletion[]>("completions", []);
     const [taskClasses, setTaskClasses] = usePersistedState<TaskClass[]>("taskClasses", []);
     const [skills, setSkills] = usePersistedState<Skill[]>("skills", []);
-    const [recurringCompletions, setRecurringCompletions] =
-        usePersistedState<RecurringTaskCompletion[]>("recurringCompletions", []);
-    const [statProgress, setStatProgress] = usePersistedState<{
-        strength: number;
-        dexterity: number;
-        intelligence: number;
-    }>("statProgress", { strength: 0, dexterity: 0, intelligence: 0 });
 
-    const [view, setView] = useState<"daily" | "weekly" | "monthly" | "allTasks" | "settings" | "projects">("daily");
-    const [currentDate, setCurrentDate] = useState<string>(new Date().toISOString().slice(0, 10));
-    const [showTaskForm, setShowTaskForm] = useState<boolean>(false);
+    const [view, setView] = useState<"daily" | "weekly" | "monthly" | "all" | "projects" | "settings">("daily");
+    const [selectedDate, setSelectedDate] = useState(new Date().toISOString().slice(0, 10));
+
+    const [showTaskModal, setShowTaskModal] = useState(false);
     const [editingTask, setEditingTask] = useState<Task | null>(null);
-    const [showResetConfirm, setShowResetConfirm] = useState<boolean>(false);
+    const [taskModalDate, setTaskModalDate] = useState<string | null>(null);
 
-    const [newTaskName, setNewTaskName] = useState<string>("");
-    const [newTaskDesc, setNewTaskDesc] = useState<string>("");
-    const [newTaskXp, setNewTaskXp] = useState<string>("10");
-    const [newTaskPriority, setNewTaskPriority] = useState<"low" | "medium" | "high">("medium");
-    const [newTaskDate, setNewTaskDate] = useState<string>(currentDate);
-    const [newTaskProject, setNewTaskProject] = useState<string | null>(null);
-    const [newTaskClass, setNewTaskClass] = useState<string | null>(null);
-    const [newTaskSkill, setNewTaskSkill] = useState<string | null>(null);
-    const [newTaskRecurring, setNewTaskRecurring] = useState<boolean>(false);
-    const [newTaskRecurringType, setNewTaskRecurringType] = useState<"daily" | "weekly" | "monthly">("daily");
-    const [newTaskRecurringDay, setNewTaskRecurringDay] = useState<string>("1");
+    const [taskName, setTaskName] = useState("");
+    const [taskDesc, setTaskDesc] = useState("");
+    const [taskProject, setTaskProject] = useState<string | null>(null);
+    const [taskPriority, setTaskPriority] = useState<"low" | "medium" | "high">("medium");
+    const [taskXp, setTaskXp] = useState(50);
+    const [taskDueDate, setTaskDueDate] = useState(selectedDate);
+    const [taskRecurring, setTaskRecurring] = useState(false);
+    const [taskRecurringType, setTaskRecurringType] = useState<"daily" | "weekly" | "monthly">("daily");
+    const [taskRecurringDay, setTaskRecurringDay] = useState(1);
+    const [taskClass, setTaskClass] = useState<string | null>(null);
+    const [taskSkill, setTaskSkill] = useState<string | null>(null);
 
-    const [newProjectName, setNewProjectName] = useState<string>("");
-    const [newProjectDesc, setNewProjectDesc] = useState<string>("");
-    const [newProjectColor, setNewProjectColor] = useState<string>("#3b82f6");
-    const [newClassName, setNewClassName] = useState<string>("");
+    const [newProjectName, setNewProjectName] = useState("");
+    const [newProjectDesc, setNewProjectDesc] = useState("");
+
+    const [newClassName, setNewClassName] = useState("");
     const [newClassStat, setNewClassStat] = useState<"strength" | "dexterity" | "intelligence">("strength");
-    const [newClassColor, setNewClassColor] = useState<string>("#ef4444");
-    const [newSkillName, setNewSkillName] = useState<string>("");
-    const [newSkillColor, setNewSkillColor] = useState<string>("#22c55e");
 
-    const today = new Date().toISOString().slice(0, 10);
+    const [showResetConfirm, setShowResetConfirm] = useState(false);
 
-    function tasksNeededForStat(currentStat: number): number {
-        return currentStat + 1;
-    }
+    const [newSkillName, setNewSkillName] = useState("");
 
-    function addXp(amount: number) {
-        const newTotal = character.totalXp + amount;
-        const requiredForNextLevel = calculateXpForLevel(character.level + 1);
-        if (newTotal >= requiredForNextLevel) {
-            setCharacter(prev => ({
-                ...prev,
-                xp: newTotal - requiredForNextLevel,
-                totalXp: newTotal,
-                level: prev.level + 1,
-                unspentPoints: prev.unspentPoints + 1
-            }));
-        } else {
-            setCharacter(prev => ({ ...prev, xp: newTotal, totalXp: newTotal }));
+    useEffect(() => {
+        if (character.xp >= calculateXpForLevel(character.level)) {
+            const newLevel = character.level + 1;
+            setCharacter({
+                ...character,
+                level: newLevel,
+                xp: 0,
+                unspentPoints: character.unspentPoints + 1,
+            });
         }
-    }
+    }, [character, setCharacter]);
 
-    function incrementStatProgress(statType: "strength" | "dexterity" | "intelligence") {
-        const needed = tasksNeededForStat(character[statType]);
-        const newProgress = statProgress[statType] + 1;
+    function getTasksForDate(date: string): Task[] {
+        const dateObj = new Date(date);
+        const dayOfMonth = dateObj.getDate();
+        const dayOfWeek = dateObj.getDay();
 
-        if (newProgress >= needed) {
-            setStatProgress(prev => ({ ...prev, [statType]: 0 }));
-            setCharacter(prev => ({ ...prev, [statType]: prev[statType] + 1 }));
-        } else {
-            setStatProgress(prev => ({ ...prev, [statType]: newProgress }));
-        }
-    }
-
-    function assignPointToStat(statType: "strength" | "dexterity" | "intelligence") {
-        if (character.unspentPoints > 0) {
-            setCharacter(prev => ({
-                ...prev,
-                [statType]: prev[statType] + 1,
-                unspentPoints: prev.unspentPoints - 1
-            }));
-        }
-    }
-
-    function incrementSkillProgress(skillId: string) {
-        const skill = skills.find(s => s.id === skillId);
-        if (!skill) return;
-        const needed = skill.level + 1;
-        const newProgress = skill.progress + 1;
-        if (newProgress >= needed) {
-            setSkills(skills.map(s => s.id === skill.id ? { ...s, level: s.level + 1, progress: 0 } : s));
-        } else {
-            setSkills(skills.map(s => s.id === skill.id ? { ...s, progress: newProgress } : s));
-        }
-    }
-
-    function addTask() {
-        const task: Task = {
-            id: Date.now().toString(),
-            projectId: newTaskProject,
-            name: newTaskName,
-            description: newTaskDesc,
-            completed: false,
-            xpReward: parseInt(newTaskXp) || 10,
-            priority: newTaskPriority,
-            dueDate: newTaskDate,
-            subtasks: [],
-            createdAt: new Date().toISOString(),
-            isRecurring: newTaskRecurring,
-            recurringType: newTaskRecurring ? newTaskRecurringType : undefined,
-            recurringDay: newTaskRecurring && newTaskRecurringType !== "daily" ? parseInt(newTaskRecurringDay) : undefined,
-            classId: newTaskClass,
-            statType: newTaskClass ? taskClasses.find(c => c.id === newTaskClass)?.statType ?? null : null,
-            skillId: newTaskSkill
-        };
-        setTasks([...tasks, task]);
-        resetTaskForm();
-        setShowTaskForm(false);
-    }
-
-    function updateTask() {
-        if (!editingTask) return;
-        const updated = tasks.map(t => t.id === editingTask.id ? {
-            ...t,
-            name: newTaskName,
-            description: newTaskDesc,
-            xpReward: parseInt(newTaskXp) || 10,
-            priority: newTaskPriority,
-            dueDate: newTaskDate,
-            projectId: newTaskProject,
-            classId: newTaskClass,
-            statType: newTaskClass ? taskClasses.find(c => c.id === newTaskClass)?.statType ?? null : null,
-            skillId: newTaskSkill,
-            isRecurring: newTaskRecurring,
-            recurringType: newTaskRecurring ? newTaskRecurringType : undefined,
-            recurringDay: newTaskRecurring && newTaskRecurringType !== "daily" ? parseInt(newTaskRecurringDay) : undefined
-        } : t);
-        setTasks(updated);
-        resetTaskForm();
-        setEditingTask(null);
-        setShowTaskForm(false);
-    }
-
-    function resetTaskForm() {
-        setNewTaskName("");
-        setNewTaskDesc("");
-        setNewTaskXp("10");
-        setNewTaskPriority("medium");
-        setNewTaskDate(currentDate);
-        setNewTaskProject(null);
-        setNewTaskClass(null);
-        setNewTaskSkill(null);
-        setNewTaskRecurring(false);
-        setNewTaskRecurringType("daily");
-        setNewTaskRecurringDay("1");
-    }
-
-    function deleteTask(id: string) {
-        setTasks(tasks.filter(t => t.id !== id));
-    }
-
-    function toggleTask(task: Task, date: string) {
-        function complete() {
-            addXp(task.xpReward);
-            if (task.statType) incrementStatProgress(task.statType);
-            if (task.skillId) incrementSkillProgress(task.skillId);
-        }
-
-        if (task.isRecurring) {
-            const existing = recurringCompletions.find(c => c.taskId === task.id && c.date === date);
-            if (existing) {
-                const updated = recurringCompletions.map(c => c.taskId === task.id && c.date === date ? { ...c, completed: !c.completed } : c);
-                setRecurringCompletions(updated);
-                if (!existing.completed) complete();
-            } else {
-                setRecurringCompletions([...recurringCompletions, { taskId: task.id, date, completed: true }]);
-                complete();
+        return tasks.filter((task) => {
+            if (task.completed && !task.isRecurring) {
+                return false;
             }
-        } else {
-            const updated = tasks.map(t => t.id === task.id ? { ...t, completed: !t.completed } : t);
-            setTasks(updated);
-            if (!task.completed) complete();
-        }
-    }
 
-    function addSubtask(taskId: string, subtaskName: string) {
-        const updated = tasks.map(t => t.id === taskId ? { ...t, subtasks: [...t.subtasks, { id: Date.now().toString(), name: subtaskName, completed: false }] } : t);
-        setTasks(updated);
-    }
+            if (task.isRecurring) {
+                const completedToday = completions.some(
+                    (c) => c.taskId === task.id && c.date === date && c.completed
+                );
+                if (completedToday) return false;
 
-    function toggleSubtask(taskId: string, subtaskId: string) {
-        const updated = tasks.map(t => {
-            if (t.id === taskId) {
-                const subs = t.subtasks.map(s => s.id === subtaskId ? { ...s, completed: !s.completed } : s);
-                return { ...t, subtasks: subs };
+                if (task.recurringType === "daily") return true;
+                if (task.recurringType === "weekly" && dayOfWeek === (task.recurringDay ?? 1)) {
+                    return true;
+                }
+                if (task.recurringType === "monthly" && dayOfMonth === (task.recurringDay ?? 1)) {
+                    return true;
+                }
+                return false;
             }
-            return t;
+
+            return task.dueDate === date;
         });
-        setTasks(updated);
     }
 
-    function addProject() {
-        if (newProjectName.trim()) {
-            const project: Project = {
-                id: Date.now().toString(),
-                name: newProjectName,
-                color: newProjectColor,
-                description: newProjectDesc
-            };
-            setProjects([...projects, project]);
-            setNewProjectName("");
-            setNewProjectDesc("");
-            setNewProjectColor("#3b82f6");
+    function completeTask(task: Task, date: string) {
+        if (task.isRecurring) {
+            const alreadyCompleted = completions.some(
+                (c) => c.taskId === task.id && c.date === date && c.completed
+            );
+            if (alreadyCompleted) return;
+            setCompletions([...completions, { taskId: task.id, date, completed: true }]);
+        } else {
+            setTasks(tasks.map((t) => (t.id === task.id ? { ...t, completed: true } : t)));
+        }
+
+        const newXp = character.xp + task.xpReward;
+        const newTotalXp = character.totalXp + task.xpReward;
+        setCharacter({ ...character, xp: newXp, totalXp: newTotalXp });
+
+        if (task.statType) {
+            const stat = task.statType;
+            setCharacter((ch) => ({ ...ch, [stat]: ch[stat] + 1 }));
+        }
+
+        if (task.classId) {
+            const classObj = taskClasses.find((c) => c.id === task.classId);
+            if (classObj) {
+                const stat = classObj.statType;
+                setCharacter((ch) => ({ ...ch, [stat]: ch[stat] + 1 }));
+            }
+        }
+
+        if (task.skillId) {
+            const skill = skills.find((s) => s.id === task.skillId);
+            if (skill) {
+                const newProgress = skill.progress + 1;
+                if (newProgress >= skill.level + 1) {
+                    setSkills(
+                        skills.map((s) =>
+                            s.id === skill.id ? { ...s, level: s.level + 1, progress: 0 } : s
+                        )
+                    );
+                } else {
+                    setSkills(
+                        skills.map((s) => (s.id === skill.id ? { ...s, progress: newProgress } : s))
+                    );
+                }
+            }
         }
     }
 
-    function deleteProject(id: string) {
-        setProjects(projects.filter(p => p.id !== id));
-        setTasks(tasks.map(t => t.projectId === id ? { ...t, projectId: null } : t));
-    }
-
-    function addTaskClass() {
-        if (newClassName.trim()) {
-            const taskClass: TaskClass = {
-                id: Date.now().toString(),
-                name: newClassName,
-                statType: newClassStat,
-                color: newClassColor
-            };
-            setTaskClasses([...taskClasses, taskClass]);
-            setNewClassName("");
-            setNewClassStat("strength");
-            setNewClassColor("#ef4444");
+    function uncompleteTask(task: Task, date: string) {
+        if (task.isRecurring) {
+            setCompletions(completions.filter((c) => !(c.taskId === task.id && c.date === date)));
+        } else {
+            setTasks(tasks.map((t) => (t.id === task.id ? { ...t, completed: false } : t)));
         }
-    }
 
-    function deleteTaskClass(id: string) {
-        setTaskClasses(taskClasses.filter(c => c.id !== id));
-        setTasks(tasks.map(t => t.classId === id ? { ...t, classId: null, statType: null } : t));
-    }
+        const newXp = character.xp - task.xpReward;
+        const newTotalXp = character.totalXp - task.xpReward;
+        setCharacter({ ...character, xp: newXp, totalXp: newTotalXp });
 
-    function addSkill() {
-        if (newSkillName.trim()) {
-            const skill: Skill = {
-                id: Date.now().toString(),
-                name: newSkillName,
-                level: 0,
-                progress: 0,
-                color: newSkillColor
-            };
-            setSkills([...skills, skill]);
-            setNewSkillName("");
+        if (task.statType) {
+            const stat = task.statType;
+            setCharacter((ch) => ({ ...ch, [stat]: Math.max(1, ch[stat] - 1) }));
         }
-    }
 
-    function deleteSkill(id: string) {
-        setSkills(skills.filter(s => s.id !== id));
-        setTasks(tasks.map(t => t.skillId === id ? { ...t, skillId: null } : t));
-    }
-
-    function resetProgress() {
-        localStorage.clear();
-        window.location.reload();
-    }
-
-    function isTaskForDate(task: Task, date: string): boolean {
-        if (!task.isRecurring) return task.dueDate === date;
-        if (task.recurringType === "daily") return true;
-        if (task.recurringType === "weekly") {
-            const d = new Date(date);
-            return d.getDay() === (task.recurringDay ?? 1);
+        if (task.classId) {
+            const classObj = taskClasses.find((c) => c.id === task.classId);
+            if (classObj) {
+                const stat = classObj.statType;
+                setCharacter((ch) => ({ ...ch, [stat]: Math.max(1, ch[stat] - 1) }));
+            }
         }
-        if (task.recurringType === "monthly") {
-            const d = new Date(date);
-            return d.getDate() === (task.recurringDay ?? 1);
+
+        if (task.skillId) {
+            const skill = skills.find((s) => s.id === task.skillId);
+            if (skill) {
+                const newProgress = Math.max(0, skill.progress - 1);
+                setSkills(skills.map((s) => (s.id === skill.id ? { ...s, progress: newProgress } : s)));
+            }
         }
-        return false;
     }
 
     function isTaskCompleted(task: Task, date: string): boolean {
-        if (!task.isRecurring) return task.completed;
-        const completion = recurringCompletions.find(c => c.taskId === task.id && c.date === date);
-        return completion?.completed ?? false;
+        if (task.isRecurring) {
+            return completions.some((c) => c.taskId === task.id && c.date === date && c.completed);
+        }
+        return task.completed;
     }
 
-    const weekDates = getWeekDates(currentDate);
-    const monthDates = getMonthDates(currentDate);
+    function openTaskModal(date: string | null = null) {
+        setTaskModalDate(date);
+        setTaskDueDate(date || selectedDate);
+        setShowTaskModal(true);
+    }
 
-    const dailyTasks = tasks.filter(t => isTaskForDate(t, currentDate));
+    function closeTaskModal() {
+        setShowTaskModal(false);
+        setEditingTask(null);
+        setTaskName("");
+        setTaskDesc("");
+        setTaskProject(null);
+        setTaskPriority("medium");
+        setTaskXp(50);
+        setTaskDueDate(selectedDate);
+        setTaskRecurring(false);
+        setTaskRecurringType("daily");
+        setTaskRecurringDay(1);
+        setTaskClass(null);
+        setTaskSkill(null);
+        setTaskModalDate(null);
+    }
 
-    const weeklyTasks: Record<string, Task[]> = {};
-    weekDates.forEach(d => {
-        weeklyTasks[d] = tasks.filter(t => isTaskForDate(t, d));
-    });
+    function saveTask() {
+        if (!taskName.trim()) return;
 
-    const monthlyTasks: Record<string, Task[]> = {};
-    monthDates.forEach(d => {
-        if (d) monthlyTasks[d] = tasks.filter(t => isTaskForDate(t, d));
-    });
+        const chosenClass = taskClass;
+        let chosenStat: "strength" | "dexterity" | "intelligence" | null = null;
 
-    function openEditTask(task: Task) {
+        if (chosenClass) {
+            const c = taskClasses.find((tc) => tc.id === chosenClass);
+            if (c) chosenStat = c.statType;
+        }
+
+        if (editingTask) {
+            setTasks(
+                tasks.map((t) =>
+                    t.id === editingTask.id
+                        ? {
+                            ...t,
+                            name: taskName,
+                            description: taskDesc,
+                            projectId: taskProject,
+                            priority: taskPriority,
+                            xpReward: taskXp,
+                            dueDate: taskDueDate,
+                            isRecurring: taskRecurring,
+                            recurringType: taskRecurring ? taskRecurringType : undefined,
+                            recurringDay: taskRecurring ? taskRecurringDay : undefined,
+                            classId: chosenClass,
+                            statType: chosenStat,
+                            skillId: taskSkill,
+                        }
+                        : t
+                )
+            );
+        } else {
+            const newTask: Task = {
+                id: Date.now().toString(),
+                projectId: taskProject,
+                name: taskName,
+                description: taskDesc,
+                completed: false,
+                xpReward: taskXp,
+                priority: taskPriority,
+                dueDate: taskDueDate,
+                subtasks: [],
+                createdAt: new Date().toISOString(),
+                isRecurring: taskRecurring,
+                recurringType: taskRecurring ? taskRecurringType : undefined,
+                recurringDay: taskRecurring ? taskRecurringDay : undefined,
+                classId: chosenClass,
+                statType: chosenStat,
+                skillId: taskSkill,
+            };
+            setTasks([...tasks, newTask]);
+        }
+        closeTaskModal();
+    }
+
+    function deleteTask(id: string) {
+        setTasks(tasks.filter((t) => t.id !== id));
+    }
+
+    function editTask(task: Task) {
         setEditingTask(task);
-        setNewTaskName(task.name);
-        setNewTaskDesc(task.description);
-        setNewTaskXp(task.xpReward.toString());
-        setNewTaskPriority(task.priority);
-        setNewTaskDate(task.dueDate);
-        setNewTaskProject(task.projectId);
-        setNewTaskClass(task.classId ?? null);
-        setNewTaskSkill(task.skillId ?? null);
-        setNewTaskRecurring(task.isRecurring ?? false);
-        setNewTaskRecurringType(task.recurringType ?? "daily");
-        setNewTaskRecurringDay((task.recurringDay ?? 1).toString());
-        setShowTaskForm(true);
+        setTaskName(task.name);
+        setTaskDesc(task.description);
+        setTaskProject(task.projectId);
+        setTaskPriority(task.priority);
+        setTaskXp(task.xpReward);
+        setTaskDueDate(task.dueDate);
+        setTaskRecurring(task.isRecurring || false);
+        setTaskRecurringType(task.recurringType || "daily");
+        setTaskRecurringDay(task.recurringDay || 1);
+        setTaskClass(task.classId || null);
+        setTaskSkill(task.skillId || null);
+        setShowTaskModal(true);
     }
 
-    const requiredForNextLevel = calculateXpForLevel(character.level + 1);
+    function addProject() {
+        if (!newProjectName.trim()) return;
+        const colors = ["#8b5cf6", "#ec4899", "#f59e0b", "#10b981", "#3b82f6", "#ef4444"];
+        const color = colors[Math.floor(Math.random() * colors.length)];
+        const newProject: Project = {
+            id: Date.now().toString(),
+            name: newProjectName,
+            color,
+            description: newProjectDesc,
+        };
+        setProjects([...projects, newProject]);
+        setNewProjectName("");
+        setNewProjectDesc("");
+    }
+
+    function deleteProject(id: string) {
+        setProjects(projects.filter((p) => p.id !== id));
+        setTasks(tasks.map((t) => (t.projectId === id ? { ...t, projectId: null } : t)));
+    }
+
+    function addTaskClass() {
+        if (!newClassName.trim()) return;
+        const colors = ["#8b5cf6", "#ec4899", "#f59e0b", "#10b981", "#3b82f6", "#ef4444"];
+        const color = colors[Math.floor(Math.random() * colors.length)];
+        const newClass: TaskClass = {
+            id: Date.now().toString(),
+            name: newClassName,
+            statType: newClassStat,
+            color,
+        };
+        setTaskClasses([...taskClasses, newClass]);
+        setNewClassName("");
+    }
+
+    function deleteTaskClass(id: string) {
+        setTaskClasses(taskClasses.filter((c) => c.id !== id));
+        setTasks(tasks.map((t) => (t.classId === id ? { ...t, classId: null, statType: null } : t)));
+    }
+
+    function addSkill() {
+        if (!newSkillName.trim()) return;
+        const colors = ["#8b5cf6", "#ec4899", "#f59e0b", "#10b981", "#3b82f6", "#ef4444"];
+        const color = colors[Math.floor(Math.random() * colors.length)];
+        const newSkill: Skill = {
+            id: Date.now().toString(),
+            name: newSkillName,
+            level: 1,
+            progress: 0,
+            color,
+        };
+        setSkills([...skills, newSkill]);
+        setNewSkillName("");
+    }
+
+    function deleteSkill(id: string) {
+        setSkills(skills.filter((s) => s.id !== id));
+        setTasks(tasks.map((t) => (t.skillId === id ? { ...t, skillId: null } : t)));
+    }
+
+    function increaseStrength() {
+        if (character.unspentPoints > 0) {
+            setCharacter({ ...character, strength: character.strength + 1, unspentPoints: character.unspentPoints - 1 });
+        }
+    }
+
+    function increaseDexterity() {
+        if (character.unspentPoints > 0) {
+            setCharacter({ ...character, dexterity: character.dexterity + 1, unspentPoints: character.unspentPoints - 1 });
+        }
+    }
+
+    function increaseIntelligence() {
+        if (character.unspentPoints > 0) {
+            setCharacter({ ...character, intelligence: character.intelligence + 1, unspentPoints: character.unspentPoints - 1 });
+        }
+    }
+
+    function resetProgress() {
+        setCharacter({
+            name: "Hero",
+            level: 1,
+            xp: 0,
+            totalXp: 0,
+            avatar: AVATARS[0],
+            strength: 1,
+            dexterity: 1,
+            intelligence: 1,
+            unspentPoints: 0,
+        });
+        setTasks([]);
+        setProjects([]);
+        setCompletions([]);
+        setTaskClasses([]);
+        setSkills([]);
+        setShowResetConfirm(false);
+    }
+
+    function previousDay() {
+        const d = new Date(selectedDate);
+        d.setDate(d.getDate() - 1);
+        setSelectedDate(d.toISOString().slice(0, 10));
+    }
+
+    function nextDay() {
+        const d = new Date(selectedDate);
+        d.setDate(d.getDate() + 1);
+        setSelectedDate(d.toISOString().slice(0, 10));
+    }
+
+    function previousWeek() {
+        const d = new Date(selectedDate);
+        d.setDate(d.getDate() - 7);
+        setSelectedDate(d.toISOString().slice(0, 10));
+    }
+
+    function nextWeek() {
+        const d = new Date(selectedDate);
+        d.setDate(d.getDate() + 7);
+        setSelectedDate(d.toISOString().slice(0, 10));
+    }
+
+    function previousMonth() {
+        const d = new Date(selectedDate);
+        const m = d.getMonth();
+        d.setMonth(m - 1); // POPRAWIONE: było m - 2
+        setSelectedDate(d.toISOString().slice(0, 10));
+    }
+
+    function nextMonth() {
+        const d = new Date(selectedDate);
+        const m = d.getMonth();
+        d.setMonth(m + 1); // POPRAWIONE: było m - 2
+        setSelectedDate(d.toISOString().slice(0, 10));
+    }
+
+    const weekDates = getWeekDates(selectedDate);
+    const monthDates = getMonthDates(selectedDate);
+
+    const allTasks = tasks.filter((t) => !t.completed);
+    const completedTasks = tasks.filter((t) => t.completed);
+
+    const xpForNextLevel = calculateXpForLevel(character.level);
 
     return (
         <div className="min-h-screen bg-slate-900 text-slate-100">
-            <div className="max-w-7xl mx-auto px-4 py-8">
-                <div className="bg-gradient-to-br from-indigo-900 to-slate-800 rounded-xl shadow-2xl p-6 mb-8 border border-indigo-700">
-                    <div className="flex flex-col md:flex-row items-center justify-between gap-6">
+            <div className="max-w-7xl mx-auto p-4 sm:p-8">
+                <header className="mb-8 bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl shadow-lg p-6 border border-slate-700">
+                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                         <div className="flex items-center gap-4">
-                            <div className="text-6xl">{character.avatar}</div>
+                            <div className="text-5xl">{character.avatar}</div>
                             <div>
-                                <h1 className="text-3xl font-bold">{character.name}</h1>
-                                <p className="text-indigo-200">Level {character.level} Hero</p>
+                                <h1 className="text-3xl font-bold text-indigo-400">{character.name}</h1>
+                                <p className="text-slate-300">Level {character.level} Adventurer</p>
                             </div>
                         </div>
 
-                        <div className="w-full md:w-auto">
-                            <p className="text-sm text-indigo-200 mb-2">XP: {character.xp} / {requiredForNextLevel}</p>
-                            <ProgressBar value={character.xp} max={requiredForNextLevel} />
+                        <div className="flex flex-col gap-3">
+                            <div className="flex items-center gap-3">
+                                <span className="text-sm text-slate-300">XP</span>
+                                <div className="w-48">
+                                    <ProgressBar value={character.xp} max={xpForNextLevel} />
+                                </div>
+                                <span className="text-xs text-slate-400">
+                                    {character.xp}/{xpForNextLevel}
+                                </span>
+                            </div>
+
+                            <div className="flex gap-4 text-sm">
+                                <div className="flex items-center gap-2">
+                                    <span className="text-rose-400">💪</span>
+                                    <span className="text-slate-300">STR: {character.strength}</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <span className="text-emerald-400">🎯</span>
+                                    <span className="text-slate-300">DEX: {character.dexterity}</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <span className="text-blue-400">🧠</span>
+                                    <span className="text-slate-300">INT: {character.intelligence}</span>
+                                </div>
+                                {character.unspentPoints > 0 && (
+                                    <span className="text-yellow-400 font-semibold">
+                                        ⭐ {character.unspentPoints} points
+                                    </span>
+                                )}
+                            </div>
                         </div>
                     </div>
-                </div>
+                </header>
 
-                <div className="flex flex-wrap gap-2 mb-6">
-                    <button onClick={() => setView("settings")} className={`px-6 py-3 rounded-lg font-medium transition-colors ${view === "settings" ? "bg-indigo-600 text-white" : "bg-slate-800 text-slate-300 hover:bg-slate-700"}`}>Character</button>
-                    <button onClick={() => setView("daily")} className={`px-6 py-3 rounded-lg font-medium transition-colors ${view === "daily" ? "bg-indigo-600 text-white" : "bg-slate-800 text-slate-300 hover:bg-slate-700"}`}>Daily</button>
-                    <button onClick={() => setView("weekly")} className={`px-6 py-3 rounded-lg font-medium transition-colors ${view === "weekly" ? "bg-indigo-600 text-white" : "bg-slate-800 text-slate-300 hover:bg-slate-700"}`}>Weekly</button>
-                    <button onClick={() => setView("monthly")} className={`px-6 py-3 rounded-lg font-medium transition-colors ${view === "monthly" ? "bg-indigo-600 text-white" : "bg-slate-800 text-slate-300 hover:bg-slate-700"}`}>Monthly</button>
-                    <button onClick={() => setView("allTasks")} className={`px-6 py-3 rounded-lg font-medium transition-colors ${view === "allTasks" ? "bg-indigo-600 text-white" : "bg-slate-800 text-slate-300 hover:bg-slate-700"}`}>All Quests</button>
-                    <button onClick={() => setView("projects")} className={`px-6 py-3 rounded-lg font-medium transition-colors ${view === "projects" ? "bg-indigo-600 text-white" : "bg-slate-800 text-slate-300 hover:bg-slate-700"}`}>Projects</button>
-                </div>
+                <nav className="mb-6 flex flex-wrap gap-2 justify-center">
+                    {["daily", "weekly", "monthly", "all", "projects", "settings"].map((v) => (
+                        <button
+                            key={v}
+                            onClick={() => setView(v as any)}
+                            className={`px-6 py-3 rounded-lg font-medium transition ${view === v
+                                    ? "bg-indigo-600 text-white shadow-lg"
+                                    : "bg-slate-800 text-slate-300 hover:bg-slate-700 border border-slate-700"
+                                }`}
+                        >
+                            {v.charAt(0).toUpperCase() + v.slice(1)}
+                        </button>
+                    ))}
+                </nav>
 
-                {showTaskForm && (
+                {view === "daily" && (
+                    <div className="bg-slate-800 rounded-xl shadow p-6 border border-slate-700">
+                        <div className="flex items-center justify-between mb-6">
+                            <button
+                                onClick={previousDay}
+                                className="bg-slate-900 text-slate-300 px-4 py-2 rounded-lg hover:bg-slate-700 border border-slate-700"
+                            >
+                                ◀ Previous
+                            </button>
+                            <h2 className="text-2xl font-semibold">{selectedDate}</h2>
+                            <button
+                                onClick={nextDay}
+                                className="bg-slate-900 text-slate-300 px-4 py-2 rounded-lg hover:bg-slate-700 border border-slate-700"
+                            >
+                                Next ▶
+                            </button>
+                        </div>
+
+                        <button
+                            onClick={() => openTaskModal()}
+                            className="mb-6 w-full bg-indigo-600 text-white px-6 py-3 rounded-lg hover:bg-indigo-700"
+                        >
+                            + Add Quest
+                        </button>
+
+                        <div className="space-y-3">
+                            {getTasksForDate(selectedDate).map((task) => {
+                                const isCompleted = isTaskCompleted(task, selectedDate);
+                                const project = projects.find((p) => p.id === task.projectId);
+                                const taskClassObj = taskClasses.find((c) => c.id === task.classId);
+                                const taskSkillObj = skills.find((s) => s.id === task.skillId);
+                                return (
+                                    <div
+                                        key={task.id}
+                                        className={`p-4 rounded-lg border transition ${isCompleted
+                                                ? "bg-slate-900 border-slate-700 opacity-60"
+                                                : "bg-slate-900 border-slate-700 hover:border-indigo-500"
+                                            }`}
+                                    >
+                                        <div className="flex items-start gap-3">
+                                            <input
+                                                type="checkbox"
+                                                checked={isCompleted}
+                                                onChange={() =>
+                                                    isCompleted
+                                                        ? uncompleteTask(task, selectedDate)
+                                                        : completeTask(task, selectedDate)
+                                                }
+                                                className="mt-1 w-5 h-5 cursor-pointer"
+                                            />
+                                            <div className="flex-1">
+                                                <div className="flex items-center gap-2 mb-1">
+                                                    <h3
+                                                        className={`font-semibold ${isCompleted ? "line-through text-slate-500" : ""
+                                                            }`}
+                                                    >
+                                                        {task.name}
+                                                    </h3>
+                                                    {project && (
+                                                        <span
+                                                            className="text-xs px-2 py-1 rounded"
+                                                            style={{ backgroundColor: project.color + "33", color: project.color }}
+                                                        >
+                                                            {project.name}
+                                                        </span>
+                                                    )}
+                                                    {taskClassObj && (
+                                                        <span
+                                                            className="text-xs px-2 py-1 rounded"
+                                                            style={{
+                                                                backgroundColor: taskClassObj.color + "33",
+                                                                color: taskClassObj.color,
+                                                            }}
+                                                        >
+                                                            {taskClassObj.name}
+                                                        </span>
+                                                    )}
+                                                    {taskSkillObj && (
+                                                        <span
+                                                            className="text-xs px-2 py-1 rounded"
+                                                            style={{
+                                                                backgroundColor: taskSkillObj.color + "33",
+                                                                color: taskSkillObj.color,
+                                                            }}
+                                                        >
+                                                            {taskSkillObj.name}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                {task.description && (
+                                                    <p className="text-sm text-slate-400 mb-2">{task.description}</p>
+                                                )}
+                                                <div className="flex items-center gap-4 text-xs text-slate-400">
+                                                    <span>+{task.xpReward} XP</span>
+                                                    <span
+                                                        className={`px-2 py-1 rounded ${task.priority === "high"
+                                                                ? "bg-rose-900 text-rose-300"
+                                                                : task.priority === "medium"
+                                                                    ? "bg-yellow-900 text-yellow-300"
+                                                                    : "bg-slate-700 text-slate-300"
+                                                            }`}
+                                                    >
+                                                        {task.priority}
+                                                    </span>
+                                                    {task.isRecurring && (
+                                                        <span className="px-2 py-1 rounded bg-indigo-900 text-indigo-300">
+                                                            🔄 {task.recurringType}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            <div className="flex gap-2">
+                                                <button
+                                                    onClick={() => editTask(task)}
+                                                    className="text-indigo-400 hover:text-indigo-300 text-sm"
+                                                >
+                                                    Edit
+                                                </button>
+                                                <button
+                                                    onClick={() => deleteTask(task.id)}
+                                                    className="text-rose-500 hover:text-rose-400 text-sm"
+                                                >
+                                                    Delete
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                            {getTasksForDate(selectedDate).length === 0 && (
+                                <p className="text-center text-slate-400 py-8">
+                                    No quests today. Add one to start your adventure!
+                                </p>
+                            )}
+                        </div>
+                    </div>
+                )}
+
+                {view === "weekly" && (
+                    <div className="bg-slate-800 rounded-xl shadow p-6 border border-slate-700">
+                        <div className="flex items-center justify-between mb-6">
+                            <button
+                                onClick={previousWeek}
+                                className="bg-slate-900 text-slate-300 px-4 py-2 rounded-lg hover:bg-slate-700 border border-slate-700"
+                            >
+                                ◀ Previous Week
+                            </button>
+                            <h2 className="text-2xl font-semibold">Weekly View</h2>
+                            <button
+                                onClick={nextWeek}
+                                className="bg-slate-900 text-slate-300 px-4 py-2 rounded-lg hover:bg-slate-700 border border-slate-700"
+                            >
+                                Next Week ▶
+                            </button>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-7 gap-4">
+                            {weekDates.map((date) => (
+                                <div key={date} className="bg-slate-900 rounded-lg p-4 border border-slate-700">
+                                    <div className="flex items-center justify-between mb-3">
+                                        <div>
+                                            <h3 className="font-semibold text-indigo-400">{getDayName(date)}</h3>
+                                            <p className="text-xs text-slate-400">{formatDateDayMonth(date)}</p>
+                                        </div>
+                                        <button
+                                            onClick={() => openTaskModal(date)}
+                                            className="text-indigo-400 hover:text-indigo-300 text-2xl leading-none"
+                                            title="Add task"
+                                        >
+                                            +
+                                        </button>
+                                    </div>
+                                    <div className="space-y-2">
+                                        {getTasksForDate(date).map((task) => {
+                                            const isCompleted = isTaskCompleted(task, date);
+                                            const project = projects.find((p) => p.id === task.projectId);
+                                            return (
+                                                <div
+                                                    key={task.id}
+                                                    className={`p-2 rounded text-xs border ${isCompleted
+                                                            ? "bg-slate-800 border-slate-700 opacity-60"
+                                                            : "bg-slate-800 border-slate-700 hover:border-indigo-500"
+                                                        }`}
+                                                >
+                                                    <div className="flex items-start gap-2">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={isCompleted}
+                                                            onChange={() =>
+                                                                isCompleted
+                                                                    ? uncompleteTask(task, date)
+                                                                    : completeTask(task, date)
+                                                            }
+                                                            className="mt-0.5 w-3 h-3 cursor-pointer"
+                                                        />
+                                                        <div className="flex-1 min-w-0">
+                                                            <div
+                                                                className={`font-medium truncate ${isCompleted ? "line-through text-slate-500" : ""
+                                                                    }`}
+                                                            >
+                                                                {task.name}
+                                                            </div>
+                                                            {project && (
+                                                                <div
+                                                                    className="text-xs mt-1 truncate"
+                                                                    style={{ color: project.color }}
+                                                                >
+                                                                    {project.name}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {view === "monthly" && (
+                    <div className="bg-slate-800 rounded-xl shadow p-6 border border-slate-700">
+                        <div className="flex items-center justify-between mb-6">
+                            <button
+                                onClick={previousMonth}
+                                className="bg-slate-900 text-slate-300 px-4 py-2 rounded-lg hover:bg-slate-700 border border-slate-700"
+                            >
+                                ◀ Previous Month
+                            </button>
+                            <h2 className="text-2xl font-semibold">
+                                {new Date(selectedDate).toLocaleDateString("en-US", {
+                                    year: "numeric",
+                                    month: "long",
+                                })}
+                            </h2>
+                            <button
+                                onClick={nextMonth}
+                                className="bg-slate-900 text-slate-300 px-4 py-2 rounded-lg hover:bg-slate-700 border border-slate-700"
+                            >
+                                Next Month ▶
+                            </button>
+                        </div>
+
+                        <div className="grid grid-cols-7 gap-2">
+                            {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((day) => (
+                                <div key={day} className="text-center text-slate-400 text-sm font-semibold py-2">
+                                    {day}
+                                </div>
+                            ))}
+
+                            {monthDates.map((date, idx) => {
+                                if (!date) {
+                                    return <div key={idx} className="bg-slate-900 rounded-lg p-2 border border-slate-700" />;
+                                }
+                                const dayTasks = getTasksForDate(date);
+                                const dayNum = new Date(date).getDate();
+                                return (
+                                    <div
+                                        key={date}
+                                        className="bg-slate-900 rounded-lg p-2 border border-slate-700 min-h-24"
+                                    >
+                                        <div className="flex items-center justify-between mb-1">
+                                            <div className="text-sm font-semibold text-slate-300">{dayNum}</div>
+                                            <button
+                                                onClick={() => openTaskModal(date)}
+                                                className="text-indigo-400 hover:text-indigo-300 text-xl leading-none"
+                                                title="Add task"
+                                            >
+                                                +
+                                            </button>
+                                        </div>
+                                        <div className="space-y-1">
+                                            {dayTasks.slice(0, 3).map((task) => {
+                                                const isCompleted = isTaskCompleted(task, date);
+                                                return (
+                                                    <div
+                                                        key={task.id}
+                                                        className={`text-xs px-1 py-1 rounded truncate ${isCompleted
+                                                                ? "bg-slate-800 text-slate-500 line-through"
+                                                                : "bg-indigo-900 text-indigo-300"
+                                                            }`}
+                                                    >
+                                                        {task.name}
+                                                    </div>
+                                                );
+                                            })}
+                                            {dayTasks.length > 3 && (
+                                                <div className="text-xs text-slate-400">+{dayTasks.length - 3} more</div>
+                                            )}
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                )}
+
+                {view === "all" && (
+                    <div className="bg-slate-800 rounded-xl shadow p-6 border border-slate-700">
+                        <div className="flex items-center justify-between mb-6">
+                            <h2 className="text-2xl font-semibold">All Quests</h2>
+                            <button
+                                onClick={() => openTaskModal()}
+                                className="bg-indigo-600 text-white px-6 py-3 rounded-lg hover:bg-indigo-700"
+                            >
+                                + Add Quest
+                            </button>
+                        </div>
+
+                        <div className="mb-8">
+                            <h3 className="text-xl font-semibold mb-4 text-indigo-400">Active Quests</h3>
+                            <div className="space-y-3">
+                                {allTasks.map((task) => {
+                                    const project = projects.find((p) => p.id === task.projectId);
+                                    const taskClassObj = taskClasses.find((c) => c.id === task.classId);
+                                    const taskSkillObj = skills.find((s) => s.id === task.skillId);
+                                    return (
+                                        <div
+                                            key={task.id}
+                                            className="p-4 rounded-lg border bg-slate-900 border-slate-700 hover:border-indigo-500 transition"
+                                        >
+                                            <div className="flex items-start gap-3">
+                                                <div className="flex-1">
+                                                    <div className="flex items-center gap-2 mb-1">
+                                                        <h3 className="font-semibold">{task.name}</h3>
+                                                        {project && (
+                                                            <span
+                                                                className="text-xs px-2 py-1 rounded"
+                                                                style={{
+                                                                    backgroundColor: project.color + "33",
+                                                                    color: project.color,
+                                                                }}
+                                                            >
+                                                                {project.name}
+                                                            </span>
+                                                        )}
+                                                        {taskClassObj && (
+                                                            <span
+                                                                className="text-xs px-2 py-1 rounded"
+                                                                style={{
+                                                                    backgroundColor: taskClassObj.color + "33",
+                                                                    color: taskClassObj.color,
+                                                                }}
+                                                            >
+                                                                {taskClassObj.name}
+                                                            </span>
+                                                        )}
+                                                        {taskSkillObj && (
+                                                            <span
+                                                                className="text-xs px-2 py-1 rounded"
+                                                                style={{
+                                                                    backgroundColor: taskSkillObj.color + "33",
+                                                                    color: taskSkillObj.color,
+                                                                }}
+                                                            >
+                                                                {taskSkillObj.name}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    {task.description && (
+                                                        <p className="text-sm text-slate-400 mb-2">{task.description}</p>
+                                                    )}
+                                                    <div className="flex items-center gap-4 text-xs text-slate-400">
+                                                        <span>Due: {task.dueDate}</span>
+                                                        <span>+{task.xpReward} XP</span>
+                                                        <span
+                                                            className={`px-2 py-1 rounded ${task.priority === "high"
+                                                                    ? "bg-rose-900 text-rose-300"
+                                                                    : task.priority === "medium"
+                                                                        ? "bg-yellow-900 text-yellow-300"
+                                                                        : "bg-slate-700 text-slate-300"
+                                                                }`}
+                                                        >
+                                                            {task.priority}
+                                                        </span>
+                                                        {task.isRecurring && (
+                                                            <span className="px-2 py-1 rounded bg-indigo-900 text-indigo-300">
+                                                                🔄 {task.recurringType}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                                <div className="flex gap-2">
+                                                    <button
+                                                        onClick={() => editTask(task)}
+                                                        className="text-indigo-400 hover:text-indigo-300 text-sm"
+                                                    >
+                                                        Edit
+                                                    </button>
+                                                    <button
+                                                        onClick={() => deleteTask(task.id)}
+                                                        className="text-rose-500 hover:text-rose-400 text-sm"
+                                                    >
+                                                        Delete
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                                {allTasks.length === 0 && (
+                                    <p className="text-center text-slate-400 py-8">
+                                        No active quests. Create one to begin your journey!
+                                    </p>
+                                )}
+                            </div>
+                        </div>
+
+                        <div>
+                            <h3 className="text-xl font-semibold mb-4 text-slate-400">Completed Quests</h3>
+                            <div className="space-y-2">
+                                {completedTasks.map((task) => {
+                                    const project = projects.find((p) => p.id === task.projectId);
+                                    return (
+                                        <div
+                                            key={task.id}
+                                            className="p-3 rounded-lg bg-slate-900 border border-slate-700 opacity-60"
+                                        >
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-indigo-400">✓</span>
+                                                <span className="line-through text-slate-500">{task.name}</span>
+                                                {project && (
+                                                    <span className="text-xs text-slate-500">{project.name}</span>
+                                                )}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                                {completedTasks.length === 0 && (
+                                    <p className="text-center text-slate-400 py-4">No completed quests yet.</p>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {showTaskModal && (
                     <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 p-4">
                         <div className="bg-slate-800 rounded-xl p-6 max-w-2xl w-full border border-slate-700 max-h-[90vh] overflow-y-auto">
-                            <div className="flex justify-between items-center mb-6">
-                                <h3 className="text-2xl font-semibold">{editingTask ? "Edit Quest" : "Create New Quest"}</h3>
-                                <button onClick={() => { setShowTaskForm(false); setEditingTask(null); resetTaskForm(); }} className="text-slate-400 hover:text-slate-200 text-2xl">✕</button>
-                            </div>
+                            <h3 className="text-2xl font-semibold mb-4">
+                                {editingTask ? "Edit Quest" : "Create New Quest"}
+                            </h3>
 
                             <div className="space-y-4">
-                                <div>
-                                    <label className="block text-sm font-medium mb-2 text-slate-300">Quest Name</label>
-                                    <input type="text" value={newTaskName} onChange={(e) => setNewTaskName(e.target.value)} className="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-lg text-slate-100" />
-                                </div>
+                                <input
+                                    type="text"
+                                    placeholder="Quest name"
+                                    value={taskName}
+                                    onChange={(e) => setTaskName(e.target.value)}
+                                    className="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-lg text-slate-100"
+                                />
 
-                                <div>
-                                    <label className="block text-sm font-medium mb-2 text-slate-300">Description</label>
-                                    <textarea value={newTaskDesc} onChange={(e) => setNewTaskDesc(e.target.value)} className="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-lg text-slate-100" rows={3} />
-                                </div>
+                                <textarea
+                                    placeholder="Description (optional)"
+                                    value={taskDesc}
+                                    onChange={(e) => setTaskDesc(e.target.value)}
+                                    className="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-lg text-slate-100 resize-none"
+                                    rows={3}
+                                />
 
                                 <div className="grid grid-cols-2 gap-4">
                                     <div>
-                                        <label className="block text-sm font-medium mb-2 text-slate-300">XP Reward</label>
-                                        <input type="number" value={newTaskXp} onChange={(e) => setNewTaskXp(e.target.value)} className="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-lg text-slate-100" />
+                                        <label className="block text-sm text-slate-300 mb-1">Project</label>
+                                        <select
+                                            value={taskProject || ""}
+                                            onChange={(e) => setTaskProject(e.target.value || null)}
+                                            className="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-lg text-slate-100"
+                                        >
+                                            <option value="">No Project</option>
+                                            {projects.map((p) => (
+                                                <option key={p.id} value={p.id}>
+                                                    {p.name}
+                                                </option>
+                                            ))}
+                                        </select>
                                     </div>
 
                                     <div>
-                                        <label className="block text-sm font-medium mb-2 text-slate-300">Priority</label>
-                                        <select value={newTaskPriority} onChange={(e) => setNewTaskPriority(e.target.value as "low" | "medium" | "high")} className="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-lg text-slate-100">
+                                        <label className="block text-sm text-slate-300 mb-1">Priority</label>
+                                        <select
+                                            value={taskPriority}
+                                            onChange={(e) =>
+                                                setTaskPriority(e.target.value as "low" | "medium" | "high")
+                                            }
+                                            className="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-lg text-slate-100"
+                                        >
                                             <option value="low">Low</option>
                                             <option value="medium">Medium</option>
                                             <option value="high">High</option>
@@ -572,326 +1154,137 @@ export default function App() {
                                     </div>
                                 </div>
 
-                                <div>
-                                    <label className="block text-sm font-medium mb-2 text-slate-300">Due Date</label>
-                                    <input type="date" value={newTaskDate} onChange={(e) => setNewTaskDate(e.target.value)} className="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-lg text-slate-100" />
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-sm text-slate-300 mb-1">XP Reward</label>
+                                        <input
+                                            type="number"
+                                            value={taskXp}
+                                            onChange={(e) => setTaskXp(Number(e.target.value))}
+                                            className="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-lg text-slate-100"
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-sm text-slate-300 mb-1">Due Date</label>
+                                        <input
+                                            type="date"
+                                            value={taskDueDate}
+                                            onChange={(e) => setTaskDueDate(e.target.value)}
+                                            className="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-lg text-slate-100"
+                                        />
+                                    </div>
                                 </div>
 
                                 <div>
-                                    <label className="block text-sm font-medium mb-2 text-slate-300">Project</label>
-                                    <select value={newTaskProject ?? ""} onChange={(e) => setNewTaskProject(e.target.value || null)} className="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-lg text-slate-100">
-                                        <option value="">None</option>
-                                        {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                                    <label className="block text-sm text-slate-300 mb-1">Task Class</label>
+                                    <select
+                                        value={taskClass || ""}
+                                        onChange={(e) => setTaskClass(e.target.value || null)}
+                                        className="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-lg text-slate-100"
+                                    >
+                                        <option value="">No Class</option>
+                                        {taskClasses.map((c) => (
+                                            <option key={c.id} value={c.id}>
+                                                {c.name} ({c.statType})
+                                            </option>
+                                        ))}
                                     </select>
                                 </div>
 
                                 <div>
-                                    <label className="block text-sm font-medium mb-2 text-slate-300">Task Class (for auto-stat progress)</label>
-                                    <select value={newTaskClass ?? ""} onChange={(e) => setNewTaskClass(e.target.value || null)} className="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-lg text-slate-100">
-                                        <option value="">None</option>
-                                        {taskClasses.map(c => <option key={c.id} value={c.id}>{c.name} ({c.statType})</option>)}
+                                    <label className="block text-sm text-slate-300 mb-1">Skill</label>
+                                    <select
+                                        value={taskSkill || ""}
+                                        onChange={(e) => setTaskSkill(e.target.value || null)}
+                                        className="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-lg text-slate-100"
+                                    >
+                                        <option value="">No Skill</option>
+                                        {skills.map((s) => (
+                                            <option key={s.id} value={s.id}>
+                                                {s.name} (Lvl {s.level})
+                                            </option>
+                                        ))}
                                     </select>
                                 </div>
 
-                                <div>
-                                    <label className="block text-sm font-medium mb-2 text-slate-300">Skill (user-created)</label>
-                                    <select value={newTaskSkill ?? ""} onChange={(e) => setNewTaskSkill(e.target.value || null)} className="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-lg text-slate-100">
-                                        <option value="">None</option>
-                                        {skills.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                                    </select>
-                                </div>
-
-                                <div>
-                                    <label className="flex items-center gap-2 cursor-pointer">
-                                        <input type="checkbox" checked={newTaskRecurring} onChange={(e) => setNewTaskRecurring(e.target.checked)} className="w-5 h-5" />
-                                        <span className="text-sm font-medium text-slate-300">Recurring Task</span>
+                                <div className="flex items-center gap-2">
+                                    <input
+                                        type="checkbox"
+                                        id="recurring"
+                                        checked={taskRecurring}
+                                        onChange={(e) => setTaskRecurring(e.target.checked)}
+                                        className="w-5 h-5 cursor-pointer"
+                                    />
+                                    <label htmlFor="recurring" className="text-slate-300">
+                                        Recurring Quest
                                     </label>
                                 </div>
 
-                                {newTaskRecurring && (
-                                    <div className="space-y-3 pl-7 border-l-2 border-indigo-600">
+                                {taskRecurring && (
+                                    <div className="grid grid-cols-2 gap-4">
                                         <div>
-                                            <label className="block text-sm font-medium mb-2 text-slate-300">Frequency</label>
-                                            <select value={newTaskRecurringType} onChange={(e) => setNewTaskRecurringType(e.target.value as "daily" | "weekly" | "monthly")} className="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-lg text-slate-100">
+                                            <label className="block text-sm text-slate-300 mb-1">Frequency</label>
+                                            <select
+                                                value={taskRecurringType}
+                                                onChange={(e) =>
+                                                    setTaskRecurringType(
+                                                        e.target.value as "daily" | "weekly" | "monthly"
+                                                    )
+                                                }
+                                                className="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-lg text-slate-100"
+                                            >
                                                 <option value="daily">Daily</option>
                                                 <option value="weekly">Weekly</option>
                                                 <option value="monthly">Monthly</option>
                                             </select>
                                         </div>
 
-                                        {newTaskRecurringType === "weekly" && (
+                                        {taskRecurringType !== "daily" && (
                                             <div>
-                                                <label className="block text-sm font-medium mb-2 text-slate-300">Day of Week</label>
-                                                <select value={newTaskRecurringDay} onChange={(e) => setNewTaskRecurringDay(e.target.value)} className="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-lg text-slate-100">
-                                                    <option value="0">Sunday</option>
-                                                    <option value="1">Monday</option>
-                                                    <option value="2">Tuesday</option>
-                                                    <option value="3">Wednesday</option>
-                                                    <option value="4">Thursday</option>
-                                                    <option value="5">Friday</option>
-                                                    <option value="6">Saturday</option>
-                                                </select>
-                                            </div>
-                                        )}
-
-                                        {newTaskRecurringType === "monthly" && (
-                                            <div>
-                                                <label className="block text-sm font-medium mb-2 text-slate-300">Day of Month</label>
-                                                <input type="number" min="1" max="31" value={newTaskRecurringDay} onChange={(e) => setNewTaskRecurringDay(e.target.value)} className="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-lg text-slate-100" />
+                                                <label className="block text-sm text-slate-300 mb-1">
+                                                    {taskRecurringType === "weekly" ? "Day of Week" : "Day of Month"}
+                                                </label>
+                                                <input
+                                                    type="number"
+                                                    min={taskRecurringType === "weekly" ? 0 : 1}
+                                                    max={taskRecurringType === "weekly" ? 6 : 31}
+                                                    value={taskRecurringDay}
+                                                    onChange={(e) => setTaskRecurringDay(Number(e.target.value))}
+                                                    className="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-lg text-slate-100"
+                                                />
                                             </div>
                                         )}
                                     </div>
                                 )}
-
-                                <div className="flex gap-3 pt-4">
-                                    <button onClick={editingTask ? updateTask : addTask} className="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white px-6 py-3 rounded-lg font-medium">{editingTask ? "Update Quest" : "Create Quest"}</button>
-                                    <button onClick={() => { setShowTaskForm(false); setEditingTask(null); resetTaskForm(); }} className="flex-1 bg-slate-900 text-slate-300 px-6 py-3 rounded-lg font-medium">Cancel</button>
-                                </div>
                             </div>
-                        </div>
-                    </div>
-                )}
 
-                {view === "daily" && (
-                    <div className="bg-slate-800 rounded-xl shadow p-6 border border-slate-700">
-                        <div className="flex justify-between items-center mb-6">
-                            <h2 className="text-2xl font-semibold">Daily Quests - {currentDate}</h2>
-                            <button onClick={() => setShowTaskForm(true)} className="bg-indigo-600 text-white px-6 py-3 rounded-lg">+ New Quest</button>
-                        </div>
-
-                        <div className="space-y-3">
-                            {dailyTasks.map(task => {
-                                const completed = isTaskCompleted(task, currentDate);
-                                const project = task.projectId ? projects.find(p => p.id === task.projectId) : null;
-                                const taskClass = task.classId ? taskClasses.find(c => c.id === task.classId) : null;
-                                const taskSkill = task.skillId ? skills.find(s => s.id === task.skillId) : null;
-
-                                return (
-                                    <div key={task.id} className={`bg-slate-900 rounded-lg p-4 border ${completed ? "border-indigo-700 bg-slate-900/50" : "border-slate-700"}`}>
-                                        <div className="flex items-start gap-3">
-                                            <input type="checkbox" checked={completed} onChange={() => toggleTask(task, currentDate)} className="mt-1 w-5 h-5 rounded" />
-
-                                            <div className="flex-1">
-                                                <div className="flex items-center gap-2 mb-1">
-                                                    <h3 className={`text-lg font-medium ${completed ? "line-through text-slate-500" : "text-slate-100"}`}>{task.name}</h3>
-                                                    {project && <span className="px-2 py-1 rounded text-xs font-medium" style={{ background: project.color + "30", color: project.color }}>{project.name}</span>}
-                                                    {taskClass && <span className="px-2 py-1 rounded text-xs font-medium" style={{ background: taskClass.color + "30", color: taskClass.color }}>{taskClass.name}</span>}
-                                                    {taskSkill && <span className="px-2 py-1 rounded text-xs font-medium" style={{ background: taskSkill.color + "30", color: taskSkill.color }}>{taskSkill.name}</span>}
-                                                </div>
-
-                                                {task.description && <p className="text-sm text-slate-400 mb-2">{task.description}</p>}
-
-                                                <div className="flex gap-4 text-sm text-slate-400 mb-3">
-                                                    <span className={`px-2 py-1 rounded ${task.priority === "high" ? "bg-rose-900/50 text-rose-300" : task.priority === "medium" ? "bg-amber-900/50 text-amber-300" : "bg-slate-700 text-slate-300"}`}>{task.priority}</span>
-                                                    <span>XP: {task.xpReward}</span>
-                                                    {task.statType && <span className="text-indigo-400">+{task.statType}</span>}
-                                                    {task.skillId && <span className="text-green-300">+skill</span>}
-                                                </div>
-
-                                                {task.subtasks.length > 0 && (
-                                                    <div className="space-y-1 mb-2">
-                                                        {task.subtasks.map(sub => (
-                                                            <label key={sub.id} className="flex items-center gap-2 text-sm cursor-pointer hover:bg-slate-800 p-1 rounded">
-                                                                <input type="checkbox" checked={sub.completed} onChange={() => toggleSubtask(task.id, sub.id)} className="w-4 h-4" />
-                                                                <span className={sub.completed ? "line-through text-slate-500" : "text-slate-300"}>{sub.name}</span>
-                                                            </label>
-                                                        ))}
-                                                    </div>
-                                                )}
-
-                                                {!completed && (
-                                                    <div className="flex gap-2">
-                                                        <button onClick={() => {
-                                                            const name = prompt(`Add subtask to "${task.name}"`);
-                                                            if (name) addSubtask(task.id, name);
-                                                        }} className="text-indigo-400 hover:text-indigo-300 text-sm">+ Add Subtask</button>
-                                                    </div>
-                                                )}
-                                            </div>
-
-                                            <div className="flex gap-2">
-                                                <button onClick={() => openEditTask(task)} className="text-slate-400 hover:text-slate-200">✏️</button>
-                                                {!task.isRecurring && <button onClick={() => deleteTask(task.id)} className="text-rose-500 hover:text-rose-400">✕</button>}
-                                            </div>
-                                        </div>
-                                    </div>
-                                );
-                            })}
-
-                            {dailyTasks.length === 0 && <p className="text-center text-slate-400 py-8">No quests for today. Create one to get started!</p>}
-                        </div>
-                    </div>
-                )}
-
-                {view === "weekly" && (
-                    <div className="bg-slate-800 rounded-xl shadow p-6 border border-slate-700">
-                        <div className="flex justify-between items-center mb-6">
-                            <h2 className="text-2xl font-semibold">Weekly View</h2>
-                            <div className="flex gap-2">
-                                <button onClick={() => {
-                                    const prevWeek = new Date(currentDate);
-                                    prevWeek.setDate(prevWeek.getDate() - 7);
-                                    setCurrentDate(prevWeek.toISOString().slice(0, 10));
-                                }} className="bg-slate-900 text-slate-300 px-4 py-2 rounded-lg">← Prev</button>
-                                <button onClick={() => setCurrentDate(today)} className="bg-indigo-600 text-white px-4 py-2 rounded-lg">Today</button>
-                                <button onClick={() => {
-                                    const nextWeek = new Date(currentDate);
-                                    nextWeek.setDate(nextWeek.getDate() + 7);
-                                    setCurrentDate(nextWeek.toISOString().slice(0, 10));
-                                }} className="bg-slate-900 text-slate-300 px-4 py-2 rounded-lg">Next →</button>
+                            <div className="flex gap-3 mt-6">
+                                <button
+                                    onClick={saveTask}
+                                    className="flex-1 bg-indigo-600 text-white px-6 py-3 rounded-lg hover:bg-indigo-700"
+                                >
+                                    {editingTask ? "Save Changes" : "Create Quest"}
+                                </button>
+                                <button
+                                    onClick={closeTaskModal}
+                                    className="flex-1 bg-slate-900 text-slate-300 px-6 py-3 rounded-lg hover:bg-slate-700 border border-slate-700"
+                                >
+                                    Cancel
+                                </button>
                             </div>
-                        </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-7 gap-4">
-                            {weekDates.map(date => {
-                                const tasksForDay = weeklyTasks[date] || [];
-                                const isToday = date === today;
-
-                                return (
-                                    <div key={date} className={`bg-slate-900 rounded-lg p-4 border ${isToday ? "border-indigo-600" : "border-slate-700"}`}>
-                                        <div className="text-center mb-3">
-                                            <p className="text-sm text-slate-400">{getDayName(date)}</p>
-                                            <p className="text-lg font-semibold">{date.slice(8, 10)}</p>
-                                        </div>
-
-                                        <div className="space-y-2">
-                                            {tasksForDay.map(task => {
-                                                const completed = isTaskCompleted(task, date);
-                                                const taskClass = task.classId ? taskClasses.find(c => c.id === task.classId) : null;
-
-                                                return (
-                                                    <div key={task.id} className={`bg-slate-800 rounded p-2 border ${completed ? "border-indigo-700" : "border-slate-700"} text-xs`}>
-                                                        <div className="flex items-center gap-2 mb-1">
-                                                            <input type="checkbox" checked={completed} onChange={() => toggleTask(task, date)} className="w-4 h-4" />
-                                                            <span className={`flex-1 ${completed ? "line-through text-slate-500" : "text-slate-200"}`}>{task.name}</span>
-                                                        </div>
-                                                        {taskClass && <div className="text-xs px-1.5 py-0.5 rounded inline-block" style={{ background: taskClass.color + "30", color: taskClass.color }}>{taskClass.name}</div>}
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    </div>
-                )}
-
-                {view === "monthly" && (
-                    <div className="bg-slate-800 rounded-xl shadow p-6 border border-slate-700">
-                        <div className="flex justify-between items-center mb-6">
-                            <h2 className="text-2xl font-semibold">Monthly View - {currentDate.slice(0, 7)}</h2>
-                            <div className="flex gap-2">
-                                <button onClick={() => {
-                                    const [year, month] = currentDate.split("-").map(Number);
-                                    const prevMonth = new Date(year, month - 2, 1);
-                                    setCurrentDate(prevMonth.toISOString().slice(0, 10));
-                                }} className="bg-slate-900 text-slate-300 px-4 py-2 rounded-lg">← Prev</button>
-                                <button onClick={() => setCurrentDate(today)} className="bg-indigo-600 text-white px-4 py-2 rounded-lg">Today</button>
-                                <button onClick={() => {
-                                    const [year, month] = currentDate.split("-").map(Number);
-                                    const nextMonth = new Date(year, month, 1);
-                                    setCurrentDate(nextMonth.toISOString().slice(0, 10));
-                                }} className="bg-slate-900 text-slate-300 px-4 py-2 rounded-lg">Next →</button>
-                            </div>
-                        </div>
-
-                        <div className="grid grid-cols-7 gap-2">
-                            {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map(day => (
-                                <div key={day} className="text-center text-sm font-semibold text-slate-400 pb-2">{day}</div>
-                            ))}
-
-                            {monthDates.map((date, idx) => {
-                                if (!date) return <div key={idx} className="aspect-square"></div>;
-
-                                const tasksForDay = monthlyTasks[date] || [];
-                                const isToday = date === today;
-
-                                return (
-                                    <div key={date} className={`bg-slate-900 rounded-lg p-2 border ${isToday ? "border-indigo-600" : "border-slate-700"} aspect-square overflow-hidden`}>
-                                        <p className="text-center text-sm font-semibold mb-1">{date.slice(8, 10)}</p>
-                                        <div className="space-y-1">
-                                            {tasksForDay.slice(0, 3).map(task => {
-                                                const completed = isTaskCompleted(task, date);
-                                                const taskClass = task.classId ? taskClasses.find(c => c.id === task.classId) : null;
-
-                                                return (
-                                                    <div key={task.id} className={`text-[10px] px-1 py-0.5 rounded ${completed ? "bg-indigo-900/50 line-through" : "bg-slate-800"}`}>
-                                                        <div className="truncate">{task.name}</div>
-                                                        {taskClass && <div className="text-[8px] truncate" style={{ color: taskClass.color }}>{taskClass.name}</div>}
-                                                    </div>
-                                                );
-                                            })}
-                                            {tasksForDay.length > 3 && <p className="text-[10px] text-slate-400">+{tasksForDay.length - 3}</p>}
-                                        </div>
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    </div>
-                )}
-
-                {view === "allTasks" && (
-                    <div className="bg-slate-800 rounded-xl shadow p-6 border border-slate-700">
-                        <div className="flex justify-between items-center mb-6">
-                            <h2 className="text-2xl font-semibold">All Quests</h2>
-                            <button onClick={() => setShowTaskForm(true)} className="bg-indigo-600 text-white px-6 py-3 rounded-lg">+ New Quest</button>
-                        </div>
-
-                        <div className="space-y-3">
-                            {tasks.map(task => {
-                                const project = task.projectId ? projects.find(p => p.id === task.projectId) : null;
-                                const taskClass = task.classId ? taskClasses.find(c => c.id === task.classId) : null;
-                                const taskSkill = task.skillId ? skills.find(s => s.id === task.skillId) : null;
-
-                                return (
-                                    <div key={task.id} className={`bg-slate-900 rounded-lg p-4 border ${task.completed ? "border-indigo-700 bg-slate-900/50" : "border-slate-700"}`}>
-                                        <div className="flex items-start gap-3">
-                                            {!task.isRecurring && <input type="checkbox" checked={task.completed} onChange={() => toggleTask(task, task.dueDate)} className="mt-1 w-5 h-5 rounded" />}
-
-                                            <div className="flex-1">
-                                                <div className="flex items-center gap-2 mb-1">
-                                                    <h3 className={`text-lg font-medium ${task.completed ? "line-through text-slate-500" : "text-slate-100"}`}>{task.name}</h3>
-                                                    {project && <span className="px-2 py-1 rounded text-xs font-medium" style={{ background: project.color + "30", color: project.color }}>{project.name}</span>}
-                                                    {taskClass && <span className="px-2 py-1 rounded text-xs font-medium" style={{ background: taskClass.color + "30", color: taskClass.color }}>{taskClass.name}</span>}
-                                                    {taskSkill && <span className="px-2 py-1 rounded text-xs font-medium" style={{ background: taskSkill.color + "30", color: taskSkill.color }}>{taskSkill.name}</span>}
-                                                    {task.isRecurring && <span className="px-2 py-1 rounded text-xs font-medium bg-indigo-900/50 text-indigo-300">Recurring</span>}
-                                                </div>
-
-                                                {task.description && <p className="text-sm text-slate-400 mb-2">{task.description}</p>}
-
-                                                <div className="flex gap-4 text-sm text-slate-400">
-                                                    <span className={`px-2 py-1 rounded ${task.priority === "high" ? "bg-rose-900/50 text-rose-300" : task.priority === "medium" ? "bg-amber-900/50 text-amber-300" : "bg-slate-700 text-slate-300"}`}>{task.priority}</span>
-                                                    <span>Due: {task.dueDate}</span>
-                                                    <span>XP: {task.xpReward}</span>
-                                                    {task.statType && <span className="text-indigo-400">+{task.statType}</span>}
-                                                    {task.skillId && <span className="text-green-300">+skill</span>}
-                                                </div>
-                                            </div>
-
-                                            <div className="flex gap-2">
-                                                <button onClick={() => openEditTask(task)} className="text-slate-400 hover:text-slate-200">✏️</button>
-                                                <button onClick={() => deleteTask(task.id)} className="text-rose-500 hover:text-rose-400">✕</button>
-                                            </div>
-                                        </div>
-                                    </div>
-                                );
-                            })}
-
-                            {tasks.length === 0 && <p className="text-center text-slate-400 py-8">No quests yet. Create one to get started!</p>}
                         </div>
                     </div>
                 )}
 
                 {view === "settings" && (
                     <div className="space-y-6">
-                        {/* --- CHARACTER INFO --- */}
                         <div className="bg-slate-800 rounded-xl shadow p-6 border border-slate-700">
-                            <h2 className="text-2xl font-semibold mb-6">Character</h2>
+                            <h2 className="text-2xl font-semibold mb-6">Character Settings</h2>
 
                             <div className="space-y-4">
                                 <div>
-                                    <label className="block text-sm font-medium mb-2 text-slate-300">Hero Name</label>
+                                    <label className="block text-sm text-slate-300 mb-2">Character Name</label>
                                     <input
                                         type="text"
                                         value={character.name}
@@ -901,15 +1294,15 @@ export default function App() {
                                 </div>
 
                                 <div>
-                                    <label className="block text-sm font-medium mb-2 text-slate-300">Avatar</label>
-                                    <div className="flex gap-3 flex-wrap">
+                                    <label className="block text-sm text-slate-300 mb-2">Avatar</label>
+                                    <div className="flex gap-2 flex-wrap">
                                         {AVATARS.map((avatar) => (
                                             <button
                                                 key={avatar}
                                                 onClick={() => setCharacter({ ...character, avatar })}
-                                                className={`text-4xl p-3 rounded-lg transition-all ${character.avatar === avatar
-                                                        ? "bg-indigo-600 scale-110"
-                                                        : "bg-slate-900 hover:bg-slate-700"
+                                                className={`text-4xl p-3 rounded-lg transition ${character.avatar === avatar
+                                                        ? "bg-indigo-600"
+                                                        : "bg-slate-900 hover:bg-slate-700 border border-slate-700"
                                                     }`}
                                             >
                                                 {avatar}
@@ -920,112 +1313,134 @@ export default function App() {
                             </div>
                         </div>
 
-                        {/* --- STATS & PROGRESSION --- */}
                         <div className="bg-slate-800 rounded-xl shadow p-6 border border-slate-700">
-                            <h2 className="text-2xl font-semibold mb-6">Stats & Progression</h2>
+                            <h2 className="text-2xl font-semibold mb-6">Stats</h2>
 
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                                {(["strength", "dexterity", "intelligence"] as const).map((stat) => (
-                                    <div key={stat} className="bg-slate-800 rounded-lg p-4 border border-slate-700">
-                                        <div className="flex justify-between items-center mb-2">
-                                            <div>
-                                                <p className="text-sm text-slate-300 capitalize">{stat}</p>
-                                                <p className="text-2xl font-bold text-slate-100">{character[stat]}</p>
-                                            </div>
-                                            <div className="text-right">
-                                                <div className="text-sm text-slate-300">
-                                                    Unspent: {character.unspentPoints}
-                                                </div>
-                                                <button
-                                                    onClick={() => assignPointToStat(stat)}
-                                                    disabled={character.unspentPoints <= 0}
-                                                    className="mt-2 px-3 py-1 bg-indigo-600 rounded disabled:opacity-40"
-                                                >
-                                                    +1
-                                                </button>
-                                            </div>
-                                        </div>
-                                        <div className="mt-3">
-                                            <p className="text-xs text-slate-400 mb-1">
-                                                Progress to next stat point
-                                            </p>
-                                            <ProgressBar
-                                                value={statProgress[stat]}
-                                                max={tasksNeededForStat(character[stat])}
-                                            />
-                                            <p className="text-xs text-slate-400 mt-1">
-                                                {statProgress[stat]}/{tasksNeededForStat(character[stat])} tasks
-                                            </p>
+                            {character.unspentPoints > 0 && (
+                                <div className="mb-4 p-4 bg-indigo-900 rounded-lg border border-indigo-700">
+                                    <p className="text-indigo-100">
+                                        You have <strong>{character.unspentPoints}</strong> unspent stat points!
+                                    </p>
+                                </div>
+                            )}
+
+                            <div className="space-y-4">
+                                <div className="flex items-center justify-between p-4 bg-slate-900 rounded-lg border border-slate-700">
+                                    <div className="flex items-center gap-3">
+                                        <span className="text-3xl">💪</span>
+                                        <div>
+                                            <div className="font-semibold text-rose-400">Strength</div>
+                                            <div className="text-2xl text-slate-100">{character.strength}</div>
                                         </div>
                                     </div>
-                                ))}
+                                    <button
+                                        onClick={increaseStrength}
+                                        disabled={character.unspentPoints === 0}
+                                        className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                        Level Up
+                                    </button>
+                                </div>
+
+                                <div className="flex items-center justify-between p-4 bg-slate-900 rounded-lg border border-slate-700">
+                                    <div className="flex items-center gap-3">
+                                        <span className="text-3xl">🎯</span>
+                                        <div>
+                                            <div className="font-semibold text-emerald-400">Dexterity</div>
+                                            <div className="text-2xl text-slate-100">{character.dexterity}</div>
+                                        </div>
+                                    </div>
+                                    <button
+                                        onClick={increaseDexterity}
+                                        disabled={character.unspentPoints === 0}
+                                        className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                        Level Up
+                                    </button>
+                                </div>
+
+                                <div className="flex items-center justify-between p-4 bg-slate-900 rounded-lg border border-slate-700">
+                                    <div className="flex items-center gap-3">
+                                        <span className="text-3xl">🧠</span>
+                                        <div>
+                                            <div className="font-semibold text-blue-400">Intelligence</div>
+                                            <div className="text-2xl text-slate-100">{character.intelligence}</div>
+                                        </div>
+                                    </div>
+                                    <button
+                                        onClick={increaseIntelligence}
+                                        disabled={character.unspentPoints === 0}
+                                        className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                        Level Up
+                                    </button>
+                                </div>
                             </div>
+                        </div>
 
-                            <p className="text-sm text-slate-400 mb-6">
-                                Completing quests mapped to specific classes increases your stats automatically.
-                                You can also spend unspent points manually.
-                            </p>
+                        <div className="bg-slate-800 rounded-xl shadow p-6 border border-slate-700">
+                            <h2 className="text-2xl font-semibold mb-6">Skills</h2>
 
-                            {/* --- SKILLS & TRAINING --- */}
-                            <div className="mt-10">
-                                <h3 className="text-2xl font-semibold mb-4 text-indigo-300">
-                                    Skills & Training
-                                </h3>
-
-                                {/* Add new skill form */}
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                            <div className="bg-slate-900 rounded-lg p-4 mb-4 border border-slate-700">
+                                <h3 className="text-lg font-semibold mb-3">Create New Skill</h3>
+                                <div className="flex gap-3">
                                     <input
                                         type="text"
-                                        placeholder="Skill name (e.g. Writing)"
+                                        placeholder="Skill name (e.g. Guitar, Spanish, Cooking)"
                                         value={newSkillName}
                                         onChange={(e) => setNewSkillName(e.target.value)}
-                                        className="px-4 py-3 bg-slate-900 border border-slate-700 rounded-lg text-slate-100"
-                                    />
-                                    <input
-                                        type="color"
-                                        value={newSkillColor}
-                                        onChange={(e) => setNewSkillColor(e.target.value)}
-                                        className="w-16 h-12 rounded"
+                                        className="flex-1 px-4 py-3 bg-slate-800 border border-slate-700 rounded-lg text-slate-100"
                                     />
                                     <button
                                         onClick={addSkill}
-                                        className="flex-1 bg-indigo-600 text-white px-4 py-2 rounded-lg"
+                                        className="bg-indigo-600 text-white px-6 py-3 rounded-lg hover:bg-indigo-700"
                                     >
                                         Add Skill
                                     </button>
                                 </div>
+                            </div>
 
-                                {/* List of skills */}
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <div className="space-y-4">
+                                <div className="space-y-3">
                                     {skills.length > 0 ? (
                                         skills.map((s) => (
                                             <div
                                                 key={s.id}
-                                                className="bg-slate-900 rounded-lg p-4 border border-slate-700 flex items-center justify-between"
+                                                className="bg-slate-900 rounded-lg p-4 border border-slate-700"
                                             >
-                                                <div className="flex items-center gap-3 flex-1">
-                                                    <div
-                                                        className="w-10 h-10 rounded-full flex items-center justify-center text-white font-semibold"
-                                                        style={{ background: s.color }}
-                                                    >
-                                                        {s.name[0]}
-                                                    </div>
-                                                    <div className="flex-1">
-                                                        <div className="flex justify-between items-center">
-                                                            <div className="font-medium text-slate-100">{s.name}</div>
-                                                            <span className="text-xs text-slate-400">
-                                                                Lv {s.level}
-                                                            </span>
+                                                <div className="flex items-center justify-between mb-2">
+                                                    <div className="flex items-center gap-3">
+                                                        <div
+                                                            className="w-10 h-10 rounded-full flex items-center justify-center text-lg font-bold"
+                                                            style={{ background: s.color }}
+                                                        >
+                                                            {s.level}
                                                         </div>
-                                                        <ProgressBar value={s.progress} max={s.level + 1} />
+                                                        <div>
+                                                            <div className="font-semibold text-slate-100">
+                                                                {s.name}
+                                                            </div>
+                                                            <div className="text-sm text-slate-400">
+                                                                Level {s.level}
+                                                            </div>
+                                                        </div>
                                                     </div>
+                                                    <button
+                                                        onClick={() => deleteSkill(s.id)}
+                                                        className="text-rose-500 hover:text-rose-400"
+                                                    >
+                                                        Delete
+                                                    </button>
                                                 </div>
-                                                <button
-                                                    onClick={() => deleteSkill(s.id)}
-                                                    className="text-rose-500 hover:text-rose-400 ml-3"
-                                                >
-                                                    ✕
-                                                </button>
+                                                <div className="mt-2">
+                                                    <p className="text-xs text-slate-400 mb-1">
+                                                        Progress to next level
+                                                    </p>
+                                                    <ProgressBar value={s.progress} max={s.level + 1} />
+                                                    <p className="text-xs text-slate-400 mt-1">
+                                                        {s.progress}/{s.level + 1} tasks completed
+                                                    </p>
+                                                </div>
                                             </div>
                                         ))
                                     ) : (
@@ -1037,7 +1452,6 @@ export default function App() {
                             </div>
                         </div>
 
-                        {/* --- DANGER ZONE --- */}
                         <div className="bg-rose-900 rounded-xl p-6 border border-rose-700">
                             <h3 className="text-xl font-semibold text-rose-100 mb-2">Danger Zone</h3>
                             <p className="text-rose-200 text-sm mb-4">
@@ -1090,7 +1504,7 @@ export default function App() {
                                 <input type="text" placeholder="Project name" value={newProjectName} onChange={(e) => setNewProjectName(e.target.value)} className="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-lg text-slate-100" />
                                 <input type="text" placeholder="Description" value={newProjectDesc} onChange={(e) => setNewProjectDesc(e.target.value)} className="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-lg text-slate-100" />
                                 <div className="flex gap-3">
-                                    <input type="color" value={newProjectColor} onChange={(e) => setNewProjectColor(e.target.value)} className="w-16 h-12 rounded" />
+
                                     <button onClick={addProject} className="flex-1 bg-indigo-600 text-white px-6 py-3 rounded-lg">Create Project</button>
                                 </div>
                             </div>
@@ -1151,7 +1565,7 @@ export default function App() {
                                     <option value="intelligence">Intelligence</option>
                                 </select>
                                 <div className="flex gap-2 items-center">
-                                    <input type="color" value={newClassColor} onChange={(e) => setNewClassColor(e.target.value)} className="w-16 h-12 rounded" />
+
                                     <button onClick={addTaskClass} className="flex-1 bg-indigo-600 text-white px-4 py-2 rounded-lg">Add Class</button>
                                 </div>
                             </div>
@@ -1172,7 +1586,7 @@ export default function App() {
                             </div>
                         </div>
 
-                        
+
                     </div>
                 )}
             </div>
