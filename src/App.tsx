@@ -39,7 +39,7 @@ type Task = {
     isRecurring?: boolean;
     recurringType?: "daily" | "weekly" | "monthly";
     recurringDay?: number;
-    statType?: "strength" | "dexterity" | "intelligence" | null;
+    statType?: "strength" | "endurance" | "intelligence" | "agility" | "charisma" | null;
     classId?: string | null;
     skillId?: string | null;
 };
@@ -51,8 +51,10 @@ type Character = {
     totalXp: number;
     avatar: string;
     strength: number;
-    dexterity: number;
+    endurance: number;
     intelligence: number;
+    agility: number;
+    charisma: number;
     unspentPoints: number;
 };
 
@@ -65,7 +67,7 @@ type RecurringTaskCompletion = {
 type TaskClass = {
     id: string;
     name: string;
-    statType: "strength" | "dexterity" | "intelligence";
+    statType: "strength" | "endurance" | "intelligence" | "agility" | "charisma";
     color?: string;
 };
 
@@ -160,6 +162,12 @@ function formatDateDayMonth(dateStr: string): string {
     return `${day}.${month}`;
 }
 
+// NOWA FUNKCJA: Sprawdzanie czy data jest dzisiaj
+function isToday(dateStr: string): boolean {
+    const today = new Date().toISOString().slice(0, 10);
+    return dateStr === today;
+}
+
 type ProgressBarProps = {
     value: number;
     max: number;
@@ -185,8 +193,10 @@ export default function App() {
         totalXp: 0,
         avatar: AVATARS[0],
         strength: 1,
-        dexterity: 1,
+        endurance: 1,
         intelligence: 1,
+        agility: 1,
+        charisma: 1,
         unspentPoints: 0,
     });
 
@@ -196,7 +206,7 @@ export default function App() {
     const [taskClasses, setTaskClasses] = usePersistedState<TaskClass[]>("taskClasses", []);
     const [skills, setSkills] = usePersistedState<Skill[]>("skills", []);
 
-    const [view, setView] = useState<"daily" | "weekly" | "monthly" | "all" | "projects" | "settings">("daily");
+    const [view, setView] = useState<"daily" | "weekly" | "monthly" | "all" | "projects" | "settings">("settings");
     const [selectedDate, setSelectedDate] = useState(new Date().toISOString().slice(0, 10));
 
     const [showTaskModal, setShowTaskModal] = useState(false);
@@ -218,7 +228,7 @@ export default function App() {
     const [newProjectDesc, setNewProjectDesc] = useState("");
 
     const [newClassName, setNewClassName] = useState("");
-    const [newClassStat, setNewClassStat] = useState<"strength" | "dexterity" | "intelligence">("strength");
+    const [newClassStat, setNewClassStat] = useState<"strength" | "endurance" | "intelligence" | "agility" | "charisma">("strength");
 
     const [showResetConfirm, setShowResetConfirm] = useState(false);
 
@@ -378,7 +388,7 @@ export default function App() {
     function saveTask() {
         if (!taskName.trim()) return;
 
-        const chosenClass = taskClass;
+        let chosenClass = taskClass;
         let chosenStat: "strength" | "dexterity" | "intelligence" | null = null;
 
         if (chosenClass) {
@@ -517,15 +527,27 @@ export default function App() {
         }
     }
 
-    function increaseDexterity() {
+    function increaseEndurance() {
         if (character.unspentPoints > 0) {
-            setCharacter({ ...character, dexterity: character.dexterity + 1, unspentPoints: character.unspentPoints - 1 });
+            setCharacter({ ...character, endurance: character.endurance + 1, unspentPoints: character.unspentPoints - 1 });
         }
     }
 
     function increaseIntelligence() {
         if (character.unspentPoints > 0) {
             setCharacter({ ...character, intelligence: character.intelligence + 1, unspentPoints: character.unspentPoints - 1 });
+        }
+    }
+
+    function increaseAgility() {
+        if (character.unspentPoints > 0) {
+            setCharacter({ ...character, agility: character.agility + 1, unspentPoints: character.unspentPoints - 1 });
+        }
+    }
+
+    function increaseCharisma() {
+        if (character.unspentPoints > 0) {
+            setCharacter({ ...character, charisma: character.charisma + 1, unspentPoints: character.unspentPoints - 1 });
         }
     }
 
@@ -537,8 +559,10 @@ export default function App() {
             totalXp: 0,
             avatar: AVATARS[0],
             strength: 1,
-            dexterity: 1,
+            endurance: 1,
             intelligence: 1,
+            agility: 1,
+            charisma: 1,
             unspentPoints: 0,
         });
         setTasks([]);
@@ -597,7 +621,7 @@ export default function App() {
 
     return (
         <div className="min-h-screen bg-slate-900 text-slate-100">
-            <div className="max-w-7xl mx-auto p-4 sm:p-8">
+            <div className="max-w-full mx-auto p-2 sm:p-4 lg:p-6">
                 <header className="mb-8 bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl shadow-lg p-6 border border-slate-700">
                     <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                         <div className="flex items-center gap-4">
@@ -625,12 +649,20 @@ export default function App() {
                                     <span className="text-slate-300">STR: {character.strength}</span>
                                 </div>
                                 <div className="flex items-center gap-2">
-                                    <span className="text-emerald-400">🎯</span>
-                                    <span className="text-slate-300">DEX: {character.dexterity}</span>
+                                    <span className="text-orange-400">❤️</span>
+                                    <span className="text-slate-300">END: {character.endurance}</span>
                                 </div>
                                 <div className="flex items-center gap-2">
                                     <span className="text-blue-400">🧠</span>
                                     <span className="text-slate-300">INT: {character.intelligence}</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <span className="text-emerald-400">⚡</span>
+                                    <span className="text-slate-300">AGI: {character.agility}</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <span className="text-purple-400">✨</span>
+                                    <span className="text-slate-300">CHA: {character.charisma}</span>
                                 </div>
                                 {character.unspentPoints > 0 && (
                                     <span className="text-yellow-400 font-semibold">
@@ -643,7 +675,7 @@ export default function App() {
                 </header>
 
                 <nav className="mb-6 flex flex-wrap gap-2 justify-center">
-                    {(["daily", "weekly", "monthly", "all", "projects", "settings"] as const).map((v) => (
+                    {(["settings", "daily", "weekly", "monthly", "projects", "all"] as const).map((v) => (
                         <button
                             key={v}
                             onClick={() => setView(v)}
@@ -652,13 +684,13 @@ export default function App() {
                                     : "bg-slate-800 text-slate-300 hover:bg-slate-700 border border-slate-700"
                                 }`}
                         >
-                            {v.charAt(0).toUpperCase() + v.slice(1)}
+                            {v === "settings" ? "Character" : v.charAt(0).toUpperCase() + v.slice(1)}
                         </button>
                     ))}
                 </nav>
 
                 {view === "daily" && (
-                    <div className="bg-slate-800 rounded-xl shadow p-6 border border-slate-700">
+                    <div className="bg-slate-800 rounded-xl shadow p-4 sm:p-6 border border-slate-700 max-w-7xl mx-auto">
                         <div className="flex items-center justify-between mb-6">
                             <button
                                 onClick={previousDay}
@@ -796,99 +828,113 @@ export default function App() {
                 )}
 
                 {view === "weekly" && (
-                    <div className="bg-slate-800 rounded-xl shadow p-6 border border-slate-700">
+                    <div className="bg-slate-800 rounded-xl shadow p-4 sm:p-6 border border-slate-700 max-w-7xl mx-auto">
                         <div className="flex items-center justify-between mb-6">
                             <button
                                 onClick={previousWeek}
-                                className="bg-slate-900 text-slate-300 px-4 py-2 rounded-lg hover:bg-slate-700 border border-slate-700"
+                                className="bg-slate-900 text-slate-300 px-3 py-2 rounded-lg hover:bg-slate-700 border border-slate-700 text-sm"
                             >
-                                ◀ Previous Week
+                                ◀ Previous
                             </button>
-                            <h2 className="text-2xl font-semibold">Weekly View</h2>
+                            <h2 className="text-xl sm:text-2xl font-semibold">Weekly View</h2>
                             <button
                                 onClick={nextWeek}
-                                className="bg-slate-900 text-slate-300 px-4 py-2 rounded-lg hover:bg-slate-700 border border-slate-700"
+                                className="bg-slate-900 text-slate-300 px-3 py-2 rounded-lg hover:bg-slate-700 border border-slate-700 text-sm"
                             >
-                                Next Week ▶
+                                Next ▶
                             </button>
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-7 gap-4">
-                            {weekDates.map((date) => (
-                                <div key={date} className="bg-slate-900 rounded-lg p-4 border border-slate-700">
-                                    <div className="flex items-center justify-between mb-3">
-                                        <div>
-                                            <h3 className="font-semibold text-indigo-400">{getDayName(date)}</h3>
-                                            <p className="text-xs text-slate-400">{formatDateDayMonth(date)}</p>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-3">
+                            {weekDates.map((date) => {
+                                const isTodayDate = isToday(date);
+                                return (
+                                    <div
+                                        key={date}
+                                        className={`rounded-lg p-3 border transition-all ${isTodayDate
+                                                ? 'bg-indigo-900 border-indigo-500 shadow-lg shadow-indigo-500/20'
+                                                : 'bg-slate-900 border-slate-700'
+                                            }`}
+                                    >
+                                        <div className="flex items-center justify-between mb-3">
+                                            <div>
+                                                <h3 className={`font-semibold ${isTodayDate ? 'text-indigo-300' : 'text-indigo-400'}`}>
+                                                    {getDayName(date)}
+                                                </h3>
+                                                <p className="text-xs text-slate-400">{formatDateDayMonth(date)}</p>
+                                            </div>
+                                            <button
+                                                onClick={() => openTaskModal(date)}
+                                                className={`hover:scale-110 transition-transform text-lg leading-none w-6 h-6 flex items-center justify-center rounded ${isTodayDate
+                                                        ? 'text-indigo-300 hover:text-indigo-200'
+                                                        : 'text-indigo-400 hover:text-indigo-300'
+                                                    }`}
+                                                title="Add task"
+                                            >
+                                                +
+                                            </button>
                                         </div>
-                                        <button
-                                            onClick={() => openTaskModal(date)}
-                                            className="text-indigo-400 hover:text-indigo-300 text-2xl leading-none"
-                                            title="Add task"
-                                        >
-                                            +
-                                        </button>
-                                    </div>
-                                    <div className="space-y-2">
-                                        {getTasksForDate(date).map((task) => {
-                                            const isCompleted = isTaskCompleted(task, date);
-                                            const project = projects.find((p) => p.id === task.projectId);
-                                            return (
-                                                <div
-                                                    key={task.id}
-                                                    className={`p-2 rounded text-xs border ${isCompleted
-                                                            ? "bg-slate-800 border-slate-700 opacity-60"
-                                                            : "bg-slate-800 border-slate-700 hover:border-indigo-500"
-                                                        }`}
-                                                >
-                                                    <div className="flex items-start gap-2">
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={isCompleted}
-                                                            onChange={() =>
-                                                                isCompleted
-                                                                    ? uncompleteTask(task, date)
-                                                                    : completeTask(task, date)
-                                                            }
-                                                            className="mt-0.5 w-3 h-3 cursor-pointer"
-                                                        />
-                                                        <div className="flex-1 min-w-0">
-                                                            <div
-                                                                className={`font-medium truncate ${isCompleted ? "line-through text-slate-500" : ""
-                                                                    }`}
-                                                            >
-                                                                {task.name}
-                                                            </div>
-                                                            {project && (
+                                        <div className="space-y-2">
+                                            {getTasksForDate(date).map((task) => {
+                                                const isCompleted = isTaskCompleted(task, date);
+                                                const project = projects.find((p) => p.id === task.projectId);
+                                                return (
+                                                    <div
+                                                        key={task.id}
+                                                        className={`p-2 rounded text-xs border ${isCompleted
+                                                                ? "bg-slate-800 border-slate-700 opacity-60"
+                                                                : "bg-slate-800 border-slate-700 hover:border-indigo-500"
+                                                            }`}
+                                                    >
+                                                        <div className="flex items-start gap-2">
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={isCompleted}
+                                                                onChange={() =>
+                                                                    isCompleted
+                                                                        ? uncompleteTask(task, date)
+                                                                        : completeTask(task, date)
+                                                                }
+                                                                className="mt-0.5 w-3 h-3 cursor-pointer"
+                                                            />
+                                                            <div className="flex-1 min-w-0">
                                                                 <div
-                                                                    className="text-xs mt-1 truncate"
-                                                                    style={{ color: project.color }}
+                                                                    className={`font-medium truncate ${isCompleted ? "line-through text-slate-500" : ""
+                                                                        }`}
                                                                 >
-                                                                    {project.name}
+                                                                    {task.name}
                                                                 </div>
-                                                            )}
+                                                                {project && (
+                                                                    <div
+                                                                        className="text-xs mt-1 truncate"
+                                                                        style={{ color: project.color }}
+                                                                    >
+                                                                        {project.name}
+                                                                    </div>
+                                                                )}
+                                                            </div>
                                                         </div>
                                                     </div>
-                                                </div>
-                                            );
-                                        })}
+                                                );
+                                            })}
+                                        </div>
                                     </div>
-                                </div>
-                            ))}
+                                );
+                            })}
                         </div>
                     </div>
                 )}
 
                 {view === "monthly" && (
-                    <div className="bg-slate-800 rounded-xl shadow p-6 border border-slate-700">
+                    <div className="bg-slate-800 rounded-xl shadow p-4 sm:p-6 border border-slate-700 max-w-7xl mx-auto">
                         <div className="flex items-center justify-between mb-6">
                             <button
                                 onClick={previousMonth}
-                                className="bg-slate-900 text-slate-300 px-4 py-2 rounded-lg hover:bg-slate-700 border border-slate-700"
+                                className="bg-slate-900 text-slate-300 px-3 py-2 rounded-lg hover:bg-slate-700 border border-slate-700 text-sm"
                             >
-                                ◀ Previous Month
+                                ◀ Previous
                             </button>
-                            <h2 className="text-2xl font-semibold">
+                            <h2 className="text-lg sm:text-2xl font-semibold">
                                 {new Date(selectedDate).toLocaleDateString("en-US", {
                                     year: "numeric",
                                     month: "long",
@@ -896,15 +942,15 @@ export default function App() {
                             </h2>
                             <button
                                 onClick={nextMonth}
-                                className="bg-slate-900 text-slate-300 px-4 py-2 rounded-lg hover:bg-slate-700 border border-slate-700"
+                                className="bg-slate-900 text-slate-300 px-3 py-2 rounded-lg hover:bg-slate-700 border border-slate-700 text-sm"
                             >
-                                Next Month ▶
+                                Next ▶
                             </button>
                         </div>
 
-                        <div className="grid grid-cols-7 gap-2">
+                        <div className="grid grid-cols-7 gap-1 sm:gap-2">
                             {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((day) => (
-                                <div key={day} className="text-center text-slate-400 text-sm font-semibold py-2">
+                                <div key={day} className="text-center text-slate-400 text-xs sm:text-sm font-semibold py-2">
                                     {day}
                                 </div>
                             ))}
@@ -915,16 +961,26 @@ export default function App() {
                                 }
                                 const dayTasks = getTasksForDate(date);
                                 const dayNum = new Date(date).getDate();
+                                const isTodayDate = isToday(date);
                                 return (
                                     <div
                                         key={date}
-                                        className="bg-slate-900 rounded-lg p-2 border border-slate-700 min-h-24"
+                                        className={`rounded-lg p-2 border min-h-20 transition-all ${isTodayDate
+                                                ? 'bg-indigo-900 border-indigo-500 shadow-lg shadow-indigo-500/20'
+                                                : 'bg-slate-900 border-slate-700'
+                                            }`}
                                     >
                                         <div className="flex items-center justify-between mb-1">
-                                            <div className="text-sm font-semibold text-slate-300">{dayNum}</div>
+                                            <div className={`text-xs sm:text-sm font-semibold ${isTodayDate ? 'text-indigo-300' : 'text-slate-300'
+                                                }`}>
+                                                {dayNum}
+                                            </div>
                                             <button
                                                 onClick={() => openTaskModal(date)}
-                                                className="text-indigo-400 hover:text-indigo-300 text-xl leading-none"
+                                                className={`hover:scale-110 transition-transform text-sm leading-none w-5 h-5 flex items-center justify-center rounded ${isTodayDate
+                                                        ? 'text-indigo-300 hover:text-indigo-200'
+                                                        : 'text-indigo-400 hover:text-indigo-300'
+                                                    }`}
                                                 title="Add task"
                                             >
                                                 +
@@ -957,7 +1013,7 @@ export default function App() {
                 )}
 
                 {view === "all" && (
-                    <div className="bg-slate-800 rounded-xl shadow p-6 border border-slate-700">
+                    <div className="bg-slate-800 rounded-xl shadow p-4 sm:p-6 border border-slate-700 max-w-7xl mx-auto">
                         <div className="flex items-center justify-between mb-6">
                             <h2 className="text-2xl font-semibold">All Quests</h2>
                             <button
@@ -1276,8 +1332,8 @@ export default function App() {
                 )}
 
                 {view === "settings" && (
-                    <div className="space-y-6">
-                        <div className="bg-slate-800 rounded-xl shadow p-6 border border-slate-700">
+                    <div className="space-y-6 max-w-7xl mx-auto">
+                        <div className="bg-slate-800 rounded-xl shadow p-4 sm:p-6 border border-slate-700">
                             <h2 className="text-2xl font-semibold mb-6">Character Settings</h2>
 
                             <div className="space-y-4">
@@ -1311,7 +1367,7 @@ export default function App() {
                             </div>
                         </div>
 
-                        <div className="bg-slate-800 rounded-xl shadow p-6 border border-slate-700">
+                        <div className="bg-slate-800 rounded-xl shadow p-4 sm:p-6 border border-slate-700">
                             <h2 className="text-2xl font-semibold mb-6">Stats</h2>
 
                             {character.unspentPoints > 0 && (
@@ -1323,60 +1379,139 @@ export default function App() {
                             )}
 
                             <div className="space-y-4">
-                                <div className="flex items-center justify-between p-4 bg-slate-900 rounded-lg border border-slate-700">
-                                    <div className="flex items-center gap-3">
-                                        <span className="text-3xl">💪</span>
-                                        <div>
-                                            <div className="font-semibold text-rose-400">Strength</div>
-                                            <div className="text-2xl text-slate-100">{character.strength}</div>
+                                <div className="p-4 bg-slate-900 rounded-lg border border-slate-700">
+                                    <div className="flex items-center justify-between mb-3">
+                                        <div className="flex items-center gap-3">
+                                            <span className="text-3xl">💪</span>
+                                            <div>
+                                                <div className="font-semibold text-rose-400">Strength</div>
+                                                <div className="text-2xl text-slate-100">{character.strength}</div>
+                                            </div>
                                         </div>
+                                        <button
+                                            onClick={increaseStrength}
+                                            disabled={character.unspentPoints === 0}
+                                            className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                                        >
+                                            Level Up
+                                        </button>
                                     </div>
-                                    <button
-                                        onClick={increaseStrength}
-                                        disabled={character.unspentPoints === 0}
-                                        className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                                    >
-                                        Level Up
-                                    </button>
+                                    <div>
+                                        <p className="text-xs text-slate-400 mb-1">Progress to next level</p>
+                                        <ProgressBar value={character.strength - 1} max={character.strength} />
+                                        <p className="text-xs text-slate-400 mt-1">
+                                            {character.strength - 1}/{character.strength} points to level {character.strength + 1}
+                                        </p>
+                                    </div>
                                 </div>
 
-                                <div className="flex items-center justify-between p-4 bg-slate-900 rounded-lg border border-slate-700">
-                                    <div className="flex items-center gap-3">
-                                        <span className="text-3xl">🎯</span>
-                                        <div>
-                                            <div className="font-semibold text-emerald-400">Dexterity</div>
-                                            <div className="text-2xl text-slate-100">{character.dexterity}</div>
+                                <div className="p-4 bg-slate-900 rounded-lg border border-slate-700">
+                                    <div className="flex items-center justify-between mb-3">
+                                        <div className="flex items-center gap-3">
+                                            <span className="text-3xl">❤️</span>
+                                            <div>
+                                                <div className="font-semibold text-orange-400">Endurance</div>
+                                                <div className="text-2xl text-slate-100">{character.endurance}</div>
+                                            </div>
                                         </div>
+                                        <button
+                                            onClick={increaseEndurance}
+                                            disabled={character.unspentPoints === 0}
+                                            className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                                        >
+                                            Level Up
+                                        </button>
                                     </div>
-                                    <button
-                                        onClick={increaseDexterity}
-                                        disabled={character.unspentPoints === 0}
-                                        className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                                    >
-                                        Level Up
-                                    </button>
+                                    <div>
+                                        <p className="text-xs text-slate-400 mb-1">Progress to next level</p>
+                                        <ProgressBar value={character.endurance - 1} max={character.endurance} />
+                                        <p className="text-xs text-slate-400 mt-1">
+                                            {character.endurance - 1}/{character.endurance} points to level {character.endurance + 1}
+                                        </p>
+                                    </div>
                                 </div>
 
-                                <div className="flex items-center justify-between p-4 bg-slate-900 rounded-lg border border-slate-700">
-                                    <div className="flex items-center gap-3">
-                                        <span className="text-3xl">🧠</span>
-                                        <div>
-                                            <div className="font-semibold text-blue-400">Intelligence</div>
-                                            <div className="text-2xl text-slate-100">{character.intelligence}</div>
+                                <div className="p-4 bg-slate-900 rounded-lg border border-slate-700">
+                                    <div className="flex items-center justify-between mb-3">
+                                        <div className="flex items-center gap-3">
+                                            <span className="text-3xl">🧠</span>
+                                            <div>
+                                                <div className="font-semibold text-blue-400">Intelligence</div>
+                                                <div className="text-2xl text-slate-100">{character.intelligence}</div>
+                                            </div>
                                         </div>
+                                        <button
+                                            onClick={increaseIntelligence}
+                                            disabled={character.unspentPoints === 0}
+                                            className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                                        >
+                                            Level Up
+                                        </button>
                                     </div>
-                                    <button
-                                        onClick={increaseIntelligence}
-                                        disabled={character.unspentPoints === 0}
-                                        className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                                    >
-                                        Level Up
-                                    </button>
+                                    <div>
+                                        <p className="text-xs text-slate-400 mb-1">Progress to next level</p>
+                                        <ProgressBar value={character.intelligence - 1} max={character.intelligence} />
+                                        <p className="text-xs text-slate-400 mt-1">
+                                            {character.intelligence - 1}/{character.intelligence} points to level {character.intelligence + 1}
+                                        </p>
+                                    </div>
+                                </div>
+
+                                <div className="p-4 bg-slate-900 rounded-lg border border-slate-700">
+                                    <div className="flex items-center justify-between mb-3">
+                                        <div className="flex items-center gap-3">
+                                            <span className="text-3xl">⚡</span>
+                                            <div>
+                                                <div className="font-semibold text-emerald-400">Agility</div>
+                                                <div className="text-2xl text-slate-100">{character.agility}</div>
+                                            </div>
+                                        </div>
+                                        <button
+                                            onClick={increaseAgility}
+                                            disabled={character.unspentPoints === 0}
+                                            className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                                        >
+                                            Level Up
+                                        </button>
+                                    </div>
+                                    <div>
+                                        <p className="text-xs text-slate-400 mb-1">Progress to next level</p>
+                                        <ProgressBar value={character.agility - 1} max={character.agility} />
+                                        <p className="text-xs text-slate-400 mt-1">
+                                            {character.agility - 1}/{character.agility} points to level {character.agility + 1}
+                                        </p>
+                                    </div>
+                                </div>
+
+                                <div className="p-4 bg-slate-900 rounded-lg border border-slate-700">
+                                    <div className="flex items-center justify-between mb-3">
+                                        <div className="flex items-center gap-3">
+                                            <span className="text-3xl">✨</span>
+                                            <div>
+                                                <div className="font-semibold text-purple-400">Charisma</div>
+                                                <div className="text-2xl text-slate-100">{character.charisma}</div>
+                                            </div>
+                                        </div>
+                                        <button
+                                            onClick={increaseCharisma}
+                                            disabled={character.unspentPoints === 0}
+                                            className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                                        >
+                                            Level Up
+                                        </button>
+                                    </div>
+                                    <div>
+                                        <p className="text-xs text-slate-400 mb-1">Progress to next level</p>
+                                        <ProgressBar value={character.charisma - 1} max={character.charisma} />
+                                        <p className="text-xs text-slate-400 mt-1">
+                                            {character.charisma - 1}/{character.charisma} points to level {character.charisma + 1}
+                                        </p>
+                                    </div>
                                 </div>
                             </div>
                         </div>
 
-                        <div className="bg-slate-800 rounded-xl shadow p-6 border border-slate-700">
+                        <div className="bg-slate-800 rounded-xl shadow p-4 sm:p-6 border border-slate-700">
                             <h2 className="text-2xl font-semibold mb-6">Skills</h2>
 
                             <div className="bg-slate-900 rounded-lg p-4 mb-4 border border-slate-700">
@@ -1493,7 +1628,7 @@ export default function App() {
 
 
                 {view === "projects" && (
-                    <div className="bg-slate-800 rounded-xl shadow p-6 border border-slate-700">
+                    <div className="bg-slate-800 rounded-xl shadow p-4 sm:p-6 border border-slate-700 max-w-7xl mx-auto">
                         <h2 className="text-2xl font-semibold mb-6">Projects & Classes</h2>
 
                         <div className="bg-slate-900 rounded-lg p-4 mb-6 border border-slate-700">
@@ -1557,10 +1692,12 @@ export default function App() {
                             <h3 className="text-lg font-semibold mb-3">Task Classes (map to stats)</h3>
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                                 <input type="text" placeholder="Class name (e.g. Running)" value={newClassName} onChange={(e) => setNewClassName(e.target.value)} className="px-4 py-3 bg-slate-800 border border-slate-700 rounded-lg text-slate-100" />
-                                <select value={newClassStat} onChange={(e) => setNewClassStat(e.target.value as "strength" | "dexterity" | "intelligence")} className="px-4 py-3 bg-slate-800 border border-slate-700 rounded-lg text-slate-100">
+                                <select value={newClassStat} onChange={(e) => setNewClassStat(e.target.value as "strength" | "endurance" | "intelligence" | "agility" | "charisma")} className="px-4 py-3 bg-slate-800 border border-slate-700 rounded-lg text-slate-100">
                                     <option value="strength">Strength</option>
-                                    <option value="dexterity">Dexterity</option>
+                                    <option value="endurance">Endurance</option>
                                     <option value="intelligence">Intelligence</option>
+                                    <option value="agility">Agility</option>
+                                    <option value="charisma">Charisma</option>
                                 </select>
                                 <div className="flex gap-2 items-center">
 
