@@ -51,10 +51,15 @@ type Character = {
     totalXp: number;
     avatar: string;
     strength: number;
+    strengthProgress: number;
     endurance: number;
+    enduranceProgress: number;
     intelligence: number;
+    intelligenceProgress: number;
     agility: number;
+    agilityProgress: number;
     charisma: number;
+    charismaProgress: number;
     unspentPoints: number;
 };
 
@@ -193,10 +198,15 @@ export default function App() {
         totalXp: 0,
         avatar: AVATARS[0],
         strength: 1,
+        strengthProgress: 0,
         endurance: 1,
+        enduranceProgress: 0,
         intelligence: 1,
+        intelligenceProgress: 0,
         agility: 1,
+        agilityProgress: 0,
         charisma: 1,
+        charismaProgress: 0,
         unspentPoints: 0,
     });
 
@@ -250,6 +260,7 @@ export default function App() {
         const dateObj = new Date(date);
         const dayOfMonth = dateObj.getDate();
         const dayOfWeek = dateObj.getDay();
+        const today = new Date().toISOString().slice(0, 10);
 
         return tasks.filter((task) => {
             if (task.completed && !task.isRecurring) {
@@ -257,6 +268,13 @@ export default function App() {
             }
 
             if (task.isRecurring) {
+                // Nie pokazuj zadań powtarzalnych w przeszłości (przed dzisiejszym dniem)
+                if (date < today) return false;
+
+                // Nie pokazuj zadań powtarzalnych przed datą ich utworzenia
+                const taskCreatedDate = task.createdAt.slice(0, 10);
+                if (date < taskCreatedDate) return false;
+
                 const completedToday = completions.some(
                     (c) => c.taskId === task.id && c.date === date && c.completed
                 );
@@ -287,23 +305,60 @@ export default function App() {
             setTasks(tasks.map((t) => (t.id === task.id ? { ...t, completed: true } : t)));
         }
 
+        // XP reward
         const newXp = character.xp + task.xpReward;
         const newTotalXp = character.totalXp + task.xpReward;
         setCharacter({ ...character, xp: newXp, totalXp: newTotalXp });
 
-        if (task.statType) {
-            const stat = task.statType;
-            setCharacter((ch) => ({ ...ch, [stat]: ch[stat] + 1 }));
-        }
-
+        // Stat progress increase - class ma pierwszeństwo nad statType
         if (task.classId) {
             const classObj = taskClasses.find((c) => c.id === task.classId);
             if (classObj) {
-                const stat = classObj.statType;
-                setCharacter((ch) => ({ ...ch, [stat]: ch[stat] + 1 }));
+                const statType = classObj.statType;
+                const progressKey = `${statType}Progress` as keyof Character;
+                const statKey = statType as keyof Character;
+                const currentProgress = character[progressKey] as number;
+                const currentStatLevel = character[statKey] as number;
+                const newProgress = currentProgress + 1;
+
+                // Sprawdź czy progress wypełnił się do następnego poziomu
+                if (newProgress >= currentStatLevel + 1) {
+                    setCharacter((ch) => ({
+                        ...ch,
+                        [statKey]: (ch[statKey] as number) + 1,
+                        [progressKey]: 0,
+                    }));
+                } else {
+                    setCharacter((ch) => ({
+                        ...ch,
+                        [progressKey]: newProgress,
+                    }));
+                }
+            }
+        } else if (task.statType) {
+            const statType = task.statType;
+            const progressKey = `${statType}Progress` as keyof Character;
+            const statKey = statType as keyof Character;
+            const currentProgress = character[progressKey] as number;
+            const currentStatLevel = character[statKey] as number;
+            const newProgress = currentProgress + 1;
+
+            // Sprawdź czy progress wypełnił się do następnego poziomu
+            if (newProgress >= currentStatLevel + 1) {
+                setCharacter((ch) => ({
+                    ...ch,
+                    [statKey]: (ch[statKey] as number) + 1,
+                    [progressKey]: 0,
+                }));
+            } else {
+                setCharacter((ch) => ({
+                    ...ch,
+                    [progressKey]: newProgress,
+                }));
             }
         }
 
+        // Skill progress
         if (task.skillId) {
             const skill = skills.find((s) => s.id === task.skillId);
             if (skill) {
@@ -330,23 +385,36 @@ export default function App() {
             setTasks(tasks.map((t) => (t.id === task.id ? { ...t, completed: false } : t)));
         }
 
+        // Remove XP
         const newXp = character.xp - task.xpReward;
         const newTotalXp = character.totalXp - task.xpReward;
         setCharacter({ ...character, xp: newXp, totalXp: newTotalXp });
 
-        if (task.statType) {
-            const stat = task.statType;
-            setCharacter((ch) => ({ ...ch, [stat]: Math.max(1, ch[stat] - 1) }));
-        }
-
+        // Decrease stat progress - class ma pierwszeństwo nad statType
         if (task.classId) {
             const classObj = taskClasses.find((c) => c.id === task.classId);
             if (classObj) {
-                const stat = classObj.statType;
-                setCharacter((ch) => ({ ...ch, [stat]: Math.max(1, ch[stat] - 1) }));
+                const statType = classObj.statType;
+                const progressKey = `${statType}Progress` as keyof Character;
+                const currentProgress = character[progressKey] as number;
+                const newProgress = Math.max(0, currentProgress - 1);
+                setCharacter((ch) => ({
+                    ...ch,
+                    [progressKey]: newProgress,
+                }));
             }
+        } else if (task.statType) {
+            const statType = task.statType;
+            const progressKey = `${statType}Progress` as keyof Character;
+            const currentProgress = character[progressKey] as number;
+            const newProgress = Math.max(0, currentProgress - 1);
+            setCharacter((ch) => ({
+                ...ch,
+                [progressKey]: newProgress,
+            }));
         }
 
+        // Decrease skill progress
         if (task.skillId) {
             const skill = skills.find((s) => s.id === task.skillId);
             if (skill) {
@@ -401,20 +469,20 @@ export default function App() {
                 tasks.map((t) =>
                     t.id === editingTask.id
                         ? {
-                              ...t,
-                              name: taskName,
-                              description: taskDesc,
-                              projectId: taskProject,
-                              priority: taskPriority,
-                              xpReward: taskXp,
-                              dueDate: taskDueDate,
-                              isRecurring: taskRecurring,
-                              recurringType: taskRecurring ? taskRecurringType : undefined,
-                              recurringDay: taskRecurring ? taskRecurringDay : undefined,
-                              classId: chosenClass,
-                              statType: chosenStat,
-                              skillId: taskSkill,
-                          }
+                            ...t,
+                            name: taskName,
+                            description: taskDesc,
+                            projectId: taskProject,
+                            priority: taskPriority,
+                            xpReward: taskXp,
+                            dueDate: taskDueDate,
+                            isRecurring: taskRecurring,
+                            recurringType: taskRecurring ? taskRecurringType : undefined,
+                            recurringDay: taskRecurring ? taskRecurringDay : undefined,
+                            classId: chosenClass,
+                            statType: chosenStat,
+                            skillId: taskSkill,
+                        }
                         : t
                 )
             );
@@ -523,31 +591,56 @@ export default function App() {
 
     function increaseStrength() {
         if (character.unspentPoints > 0) {
-            setCharacter({ ...character, strength: character.strength + 1, unspentPoints: character.unspentPoints - 1 });
+            setCharacter({
+                ...character,
+                strength: character.strength + 1,
+                strengthProgress: 0,
+                unspentPoints: character.unspentPoints - 1
+            });
         }
     }
 
     function increaseEndurance() {
         if (character.unspentPoints > 0) {
-            setCharacter({ ...character, endurance: character.endurance + 1, unspentPoints: character.unspentPoints - 1 });
+            setCharacter({
+                ...character,
+                endurance: character.endurance + 1,
+                enduranceProgress: 0,
+                unspentPoints: character.unspentPoints - 1
+            });
         }
     }
 
     function increaseIntelligence() {
         if (character.unspentPoints > 0) {
-            setCharacter({ ...character, intelligence: character.intelligence + 1, unspentPoints: character.unspentPoints - 1 });
+            setCharacter({
+                ...character,
+                intelligence: character.intelligence + 1,
+                intelligenceProgress: 0,
+                unspentPoints: character.unspentPoints - 1
+            });
         }
     }
 
     function increaseAgility() {
         if (character.unspentPoints > 0) {
-            setCharacter({ ...character, agility: character.agility + 1, unspentPoints: character.unspentPoints - 1 });
+            setCharacter({
+                ...character,
+                agility: character.agility + 1,
+                agilityProgress: 0,
+                unspentPoints: character.unspentPoints - 1
+            });
         }
     }
 
     function increaseCharisma() {
         if (character.unspentPoints > 0) {
-            setCharacter({ ...character, charisma: character.charisma + 1, unspentPoints: character.unspentPoints - 1 });
+            setCharacter({
+                ...character,
+                charisma: character.charisma + 1,
+                charismaProgress: 0,
+                unspentPoints: character.unspentPoints - 1
+            });
         }
     }
 
@@ -559,10 +652,15 @@ export default function App() {
             totalXp: 0,
             avatar: AVATARS[0],
             strength: 1,
+            strengthProgress: 0,
             endurance: 1,
+            enduranceProgress: 0,
             intelligence: 1,
+            intelligenceProgress: 0,
             agility: 1,
+            agilityProgress: 0,
             charisma: 1,
+            charismaProgress: 0,
             unspentPoints: 0,
         });
         setTasks([]);
@@ -643,7 +741,7 @@ export default function App() {
                                 </span>
                             </div>
 
-                            <div className="flex gap-4 text-sm">
+                            <div className="flex gap-4 text-sm flex-wrap">
                                 <div className="flex items-center gap-2">
                                     <span className="text-rose-400">💪</span>
                                     <span className="text-slate-300">STR: {character.strength}</span>
@@ -679,11 +777,10 @@ export default function App() {
                         <button
                             key={v}
                             onClick={() => setView(v)}
-                            className={`px-6 py-3 rounded-lg font-medium transition ${
-                                view === v
+                            className={`px-6 py-3 rounded-lg font-medium transition ${view === v
                                     ? "bg-indigo-600 text-white shadow-lg"
                                     : "bg-slate-800 text-slate-300 hover:bg-slate-700 border border-slate-700"
-                            }`}
+                                }`}
                         >
                             {v === "settings" ? "Character" : v.charAt(0).toUpperCase() + v.slice(1)}
                         </button>
@@ -724,11 +821,10 @@ export default function App() {
                                 return (
                                     <div
                                         key={task.id}
-                                        className={`p-4 rounded-lg border transition ${
-                                            isCompleted
+                                        className={`p-4 rounded-lg border transition ${isCompleted
                                                 ? "bg-slate-900 border-slate-700 opacity-60"
                                                 : "bg-slate-900 border-slate-700 hover:border-indigo-500"
-                                        }`}
+                                            }`}
                                     >
                                         <div className="flex items-start gap-3">
                                             <input
@@ -744,9 +840,8 @@ export default function App() {
                                             <div className="flex-1">
                                                 <div className="flex items-center gap-2 mb-1">
                                                     <h3
-                                                        className={`font-semibold ${
-                                                            isCompleted ? "line-through text-slate-500" : ""
-                                                        }`}
+                                                        className={`font-semibold ${isCompleted ? "line-through text-slate-500" : ""
+                                                            }`}
                                                     >
                                                         {task.name}
                                                     </h3>
@@ -787,13 +882,12 @@ export default function App() {
                                                 <div className="flex items-center gap-4 text-xs text-slate-400">
                                                     <span>+{task.xpReward} XP</span>
                                                     <span
-                                                        className={`px-2 py-1 rounded ${
-                                                            task.priority === "high"
+                                                        className={`px-2 py-1 rounded ${task.priority === "high"
                                                                 ? "bg-rose-900 text-rose-300"
                                                                 : task.priority === "medium"
-                                                                ? "bg-yellow-900 text-yellow-300"
-                                                                : "bg-slate-700 text-slate-300"
-                                                        }`}
+                                                                    ? "bg-yellow-900 text-yellow-300"
+                                                                    : "bg-slate-700 text-slate-300"
+                                                            }`}
                                                     >
                                                         {task.priority}
                                                     </span>
@@ -853,13 +947,12 @@ export default function App() {
                             {weekDates.map((date) => {
                                 const isTodayDate = isToday(date);
                                 return (
-                                    <div 
-                                        key={date} 
-                                        className={`rounded-lg p-3 border transition-all ${
-                                            isTodayDate 
-                                                ? 'bg-indigo-900 border-indigo-500 shadow-lg shadow-indigo-500/20' 
+                                    <div
+                                        key={date}
+                                        className={`rounded-lg p-3 border transition-all ${isTodayDate
+                                                ? 'bg-indigo-900 border-indigo-500 shadow-lg shadow-indigo-500/20'
                                                 : 'bg-slate-900 border-slate-700'
-                                        }`}
+                                            }`}
                                     >
                                         <div className="flex items-center justify-between mb-3">
                                             <div>
@@ -870,11 +963,10 @@ export default function App() {
                                             </div>
                                             <button
                                                 onClick={() => openTaskModal(date)}
-                                                className={`hover:scale-110 transition-transform text-lg leading-none w-6 h-6 flex items-center justify-center rounded ${
-                                                    isTodayDate 
-                                                        ? 'text-indigo-300 hover:text-indigo-200' 
+                                                className={`hover:scale-110 transition-transform text-lg leading-none w-6 h-6 flex items-center justify-center rounded ${isTodayDate
+                                                        ? 'text-indigo-300 hover:text-indigo-200'
                                                         : 'text-indigo-400 hover:text-indigo-300'
-                                                }`}
+                                                    }`}
                                                 title="Add task"
                                             >
                                                 +
@@ -887,28 +979,29 @@ export default function App() {
                                                 return (
                                                     <div
                                                         key={task.id}
-                                                        className={`p-2 rounded text-xs border ${
-                                                            isCompleted
+                                                        className={`p-2 rounded text-xs border cursor-pointer transition-all ${isCompleted
                                                                 ? "bg-slate-800 border-slate-700 opacity-60"
-                                                                : "bg-slate-800 border-slate-700 hover:border-indigo-500"
-                                                        }`}
+                                                                : "bg-slate-800 border-slate-700 hover:border-indigo-500 hover:bg-slate-750"
+                                                            }`}
+                                                        onClick={() => editTask(task)}
                                                     >
                                                         <div className="flex items-start gap-2">
                                                             <input
                                                                 type="checkbox"
                                                                 checked={isCompleted}
-                                                                onChange={() =>
+                                                                onChange={(e) => {
+                                                                    e.stopPropagation();
                                                                     isCompleted
                                                                         ? uncompleteTask(task, date)
-                                                                        : completeTask(task, date)
-                                                                }
+                                                                        : completeTask(task, date);
+                                                                }}
+                                                                onClick={(e) => e.stopPropagation()}
                                                                 className="mt-0.5 w-3 h-3 cursor-pointer"
                                                             />
                                                             <div className="flex-1 min-w-0">
                                                                 <div
-                                                                    className={`font-medium truncate ${
-                                                                        isCompleted ? "line-through text-slate-500" : ""
-                                                                    }`}
+                                                                    className={`font-medium truncate ${isCompleted ? "line-through text-slate-500" : ""
+                                                                        }`}
                                                                 >
                                                                     {task.name}
                                                                 </div>
@@ -973,25 +1066,22 @@ export default function App() {
                                 return (
                                     <div
                                         key={date}
-                                        className={`rounded-lg p-2 border min-h-20 transition-all ${
-                                            isTodayDate 
-                                                ? 'bg-indigo-900 border-indigo-500 shadow-lg shadow-indigo-500/20' 
+                                        className={`rounded-lg p-2 border min-h-20 transition-all ${isTodayDate
+                                                ? 'bg-indigo-900 border-indigo-500 shadow-lg shadow-indigo-500/20'
                                                 : 'bg-slate-900 border-slate-700'
-                                        }`}
+                                            }`}
                                     >
                                         <div className="flex items-center justify-between mb-1">
-                                            <div className={`text-xs sm:text-sm font-semibold ${
-                                                isTodayDate ? 'text-indigo-300' : 'text-slate-300'
-                                            }`}>
+                                            <div className={`text-xs sm:text-sm font-semibold ${isTodayDate ? 'text-indigo-300' : 'text-slate-300'
+                                                }`}>
                                                 {dayNum}
                                             </div>
                                             <button
                                                 onClick={() => openTaskModal(date)}
-                                                className={`hover:scale-110 transition-transform text-sm leading-none w-5 h-5 flex items-center justify-center rounded ${
-                                                    isTodayDate 
-                                                        ? 'text-indigo-300 hover:text-indigo-200' 
+                                                className={`hover:scale-110 transition-transform text-sm leading-none w-5 h-5 flex items-center justify-center rounded ${isTodayDate
+                                                        ? 'text-indigo-300 hover:text-indigo-200'
                                                         : 'text-indigo-400 hover:text-indigo-300'
-                                                }`}
+                                                    }`}
                                                 title="Add task"
                                             >
                                                 +
@@ -1003,11 +1093,11 @@ export default function App() {
                                                 return (
                                                     <div
                                                         key={task.id}
-                                                        className={`text-xs px-1 py-1 rounded truncate ${
-                                                            isCompleted
+                                                        onClick={() => editTask(task)}
+                                                        className={`text-xs px-1 py-1 rounded truncate cursor-pointer transition-all ${isCompleted
                                                                 ? "bg-slate-800 text-slate-500 line-through"
-                                                                : "bg-indigo-900 text-indigo-300"
-                                                        }`}
+                                                                : "bg-indigo-900 text-indigo-300 hover:bg-indigo-800"
+                                                            }`}
                                                     >
                                                         {task.name}
                                                     </div>
@@ -1093,13 +1183,12 @@ export default function App() {
                                                         <span>Due: {task.dueDate}</span>
                                                         <span>+{task.xpReward} XP</span>
                                                         <span
-                                                            className={`px-2 py-1 rounded ${
-                                                                task.priority === "high"
+                                                            className={`px-2 py-1 rounded ${task.priority === "high"
                                                                     ? "bg-rose-900 text-rose-300"
                                                                     : task.priority === "medium"
-                                                                    ? "bg-yellow-900 text-yellow-300"
-                                                                    : "bg-slate-700 text-slate-300"
-                                                            }`}
+                                                                        ? "bg-yellow-900 text-yellow-300"
+                                                                        : "bg-slate-700 text-slate-300"
+                                                                }`}
                                                         >
                                                             {task.priority}
                                                         </span>
@@ -1367,11 +1456,10 @@ export default function App() {
                                             <button
                                                 key={avatar}
                                                 onClick={() => setCharacter({ ...character, avatar })}
-                                                className={`text-4xl p-3 rounded-lg transition ${
-                                                    character.avatar === avatar
+                                                className={`text-4xl p-3 rounded-lg transition ${character.avatar === avatar
                                                         ? "bg-indigo-600"
                                                         : "bg-slate-900 hover:bg-slate-700 border border-slate-700"
-                                                }`}
+                                                    }`}
                                             >
                                                 {avatar}
                                             </button>
@@ -1412,9 +1500,9 @@ export default function App() {
                                     </div>
                                     <div>
                                         <p className="text-xs text-slate-400 mb-1">Progress to next level</p>
-                                        <ProgressBar value={character.strength - 1} max={character.strength} />
+                                        <ProgressBar value={character.strengthProgress} max={character.strength + 1} />
                                         <p className="text-xs text-slate-400 mt-1">
-                                            {character.strength - 1}/{character.strength} points to level {character.strength + 1}
+                                            {character.strengthProgress}/{character.strength + 1} tasks to level {character.strength + 1}
                                         </p>
                                     </div>
                                 </div>
@@ -1438,9 +1526,9 @@ export default function App() {
                                     </div>
                                     <div>
                                         <p className="text-xs text-slate-400 mb-1">Progress to next level</p>
-                                        <ProgressBar value={character.endurance - 1} max={character.endurance} />
+                                        <ProgressBar value={character.enduranceProgress} max={character.endurance + 1} />
                                         <p className="text-xs text-slate-400 mt-1">
-                                            {character.endurance - 1}/{character.endurance} points to level {character.endurance + 1}
+                                            {character.enduranceProgress}/{character.endurance + 1} tasks to level {character.endurance + 1}
                                         </p>
                                     </div>
                                 </div>
@@ -1464,9 +1552,9 @@ export default function App() {
                                     </div>
                                     <div>
                                         <p className="text-xs text-slate-400 mb-1">Progress to next level</p>
-                                        <ProgressBar value={character.intelligence - 1} max={character.intelligence} />
+                                        <ProgressBar value={character.intelligenceProgress} max={character.intelligence + 1} />
                                         <p className="text-xs text-slate-400 mt-1">
-                                            {character.intelligence - 1}/{character.intelligence} points to level {character.intelligence + 1}
+                                            {character.intelligenceProgress}/{character.intelligence + 1} tasks to level {character.intelligence + 1}
                                         </p>
                                     </div>
                                 </div>
@@ -1490,9 +1578,9 @@ export default function App() {
                                     </div>
                                     <div>
                                         <p className="text-xs text-slate-400 mb-1">Progress to next level</p>
-                                        <ProgressBar value={character.agility - 1} max={character.agility} />
+                                        <ProgressBar value={character.agilityProgress} max={character.agility + 1} />
                                         <p className="text-xs text-slate-400 mt-1">
-                                            {character.agility - 1}/{character.agility} points to level {character.agility + 1}
+                                            {character.agilityProgress}/{character.agility + 1} tasks to level {character.agility + 1}
                                         </p>
                                     </div>
                                 </div>
@@ -1516,9 +1604,9 @@ export default function App() {
                                     </div>
                                     <div>
                                         <p className="text-xs text-slate-400 mb-1">Progress to next level</p>
-                                        <ProgressBar value={character.charisma - 1} max={character.charisma} />
+                                        <ProgressBar value={character.charismaProgress} max={character.charisma + 1} />
                                         <p className="text-xs text-slate-400 mt-1">
-                                            {character.charisma - 1}/{character.charisma} points to level {character.charisma + 1}
+                                            {character.charismaProgress}/{character.charisma + 1} tasks to level {character.charisma + 1}
                                         </p>
                                     </div>
                                 </div>
@@ -1651,7 +1739,7 @@ export default function App() {
                                 <input type="text" placeholder="Project name" value={newProjectName} onChange={(e) => setNewProjectName(e.target.value)} className="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-lg text-slate-100" />
                                 <input type="text" placeholder="Description" value={newProjectDesc} onChange={(e) => setNewProjectDesc(e.target.value)} className="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-lg text-slate-100" />
                                 <div className="flex gap-3">
-                                    
+
                                     <button onClick={addProject} className="flex-1 bg-indigo-600 text-white px-6 py-3 rounded-lg">Create Project</button>
                                 </div>
                             </div>
@@ -1714,7 +1802,7 @@ export default function App() {
                                     <option value="charisma">Charisma</option>
                                 </select>
                                 <div className="flex gap-2 items-center">
-                                   
+
                                     <button onClick={addTaskClass} className="flex-1 bg-indigo-600 text-white px-4 py-2 rounded-lg">Add Class</button>
                                 </div>
                             </div>
@@ -1735,7 +1823,7 @@ export default function App() {
                             </div>
                         </div>
 
-                        
+
                     </div>
                 )}
             </div>
