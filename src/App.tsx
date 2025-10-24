@@ -389,7 +389,7 @@ export default function App() {
         if (!taskName.trim()) return;
 
         let chosenClass = taskClass;
-        let chosenStat: "strength" | "dexterity" | "intelligence" | null = null;
+        let chosenStat: "strength" | "endurance" | "intelligence" | "agility" | "charisma" | null = null;
 
         if (chosenClass) {
             const c = taskClasses.find((tc) => tc.id === chosenClass);
@@ -401,20 +401,20 @@ export default function App() {
                 tasks.map((t) =>
                     t.id === editingTask.id
                         ? {
-                            ...t,
-                            name: taskName,
-                            description: taskDesc,
-                            projectId: taskProject,
-                            priority: taskPriority,
-                            xpReward: taskXp,
-                            dueDate: taskDueDate,
-                            isRecurring: taskRecurring,
-                            recurringType: taskRecurring ? taskRecurringType : undefined,
-                            recurringDay: taskRecurring ? taskRecurringDay : undefined,
-                            classId: chosenClass,
-                            statType: chosenStat,
-                            skillId: taskSkill,
-                        }
+                              ...t,
+                              name: taskName,
+                              description: taskDesc,
+                              projectId: taskProject,
+                              priority: taskPriority,
+                              xpReward: taskXp,
+                              dueDate: taskDueDate,
+                              isRecurring: taskRecurring,
+                              recurringType: taskRecurring ? taskRecurringType : undefined,
+                              recurringDay: taskRecurring ? taskRecurringDay : undefined,
+                              classId: chosenClass,
+                              statType: chosenStat,
+                              skillId: taskSkill,
+                          }
                         : t
                 )
             );
@@ -679,10 +679,11 @@ export default function App() {
                         <button
                             key={v}
                             onClick={() => setView(v)}
-                            className={`px-6 py-3 rounded-lg font-medium transition ${view === v
+                            className={`px-6 py-3 rounded-lg font-medium transition ${
+                                view === v
                                     ? "bg-indigo-600 text-white shadow-lg"
                                     : "bg-slate-800 text-slate-300 hover:bg-slate-700 border border-slate-700"
-                                }`}
+                            }`}
                         >
                             {v === "settings" ? "Character" : v.charAt(0).toUpperCase() + v.slice(1)}
                         </button>
@@ -723,10 +724,11 @@ export default function App() {
                                 return (
                                     <div
                                         key={task.id}
-                                        className={`p-4 rounded-lg border transition ${isCompleted
+                                        className={`p-4 rounded-lg border transition ${
+                                            isCompleted
                                                 ? "bg-slate-900 border-slate-700 opacity-60"
                                                 : "bg-slate-900 border-slate-700 hover:border-indigo-500"
-                                            }`}
+                                        }`}
                                     >
                                         <div className="flex items-start gap-3">
                                             <input
@@ -742,8 +744,9 @@ export default function App() {
                                             <div className="flex-1">
                                                 <div className="flex items-center gap-2 mb-1">
                                                     <h3
-                                                        className={`font-semibold ${isCompleted ? "line-through text-slate-500" : ""
-                                                            }`}
+                                                        className={`font-semibold ${
+                                                            isCompleted ? "line-through text-slate-500" : ""
+                                                        }`}
                                                     >
                                                         {task.name}
                                                     </h3>
@@ -784,12 +787,13 @@ export default function App() {
                                                 <div className="flex items-center gap-4 text-xs text-slate-400">
                                                     <span>+{task.xpReward} XP</span>
                                                     <span
-                                                        className={`px-2 py-1 rounded ${task.priority === "high"
+                                                        className={`px-2 py-1 rounded ${
+                                                            task.priority === "high"
                                                                 ? "bg-rose-900 text-rose-300"
                                                                 : task.priority === "medium"
-                                                                    ? "bg-yellow-900 text-yellow-300"
-                                                                    : "bg-slate-700 text-slate-300"
-                                                            }`}
+                                                                ? "bg-yellow-900 text-yellow-300"
+                                                                : "bg-slate-700 text-slate-300"
+                                                        }`}
                                                     >
                                                         {task.priority}
                                                     </span>
@@ -849,12 +853,13 @@ export default function App() {
                             {weekDates.map((date) => {
                                 const isTodayDate = isToday(date);
                                 return (
-                                    <div
-                                        key={date}
-                                        className={`rounded-lg p-3 border transition-all ${isTodayDate
-                                                ? 'bg-indigo-900 border-indigo-500 shadow-lg shadow-indigo-500/20'
+                                    <div 
+                                        key={date} 
+                                        className={`rounded-lg p-3 border transition-all ${
+                                            isTodayDate 
+                                                ? 'bg-indigo-900 border-indigo-500 shadow-lg shadow-indigo-500/20' 
                                                 : 'bg-slate-900 border-slate-700'
-                                            }`}
+                                        }`}
                                     >
                                         <div className="flex items-center justify-between mb-3">
                                             <div>
@@ -865,10 +870,11 @@ export default function App() {
                                             </div>
                                             <button
                                                 onClick={() => openTaskModal(date)}
-                                                className={`hover:scale-110 transition-transform text-lg leading-none w-6 h-6 flex items-center justify-center rounded ${isTodayDate
-                                                        ? 'text-indigo-300 hover:text-indigo-200'
+                                                className={`hover:scale-110 transition-transform text-lg leading-none w-6 h-6 flex items-center justify-center rounded ${
+                                                    isTodayDate 
+                                                        ? 'text-indigo-300 hover:text-indigo-200' 
                                                         : 'text-indigo-400 hover:text-indigo-300'
-                                                    }`}
+                                                }`}
                                                 title="Add task"
                                             >
                                                 +
@@ -881,10 +887,11 @@ export default function App() {
                                                 return (
                                                     <div
                                                         key={task.id}
-                                                        className={`p-2 rounded text-xs border ${isCompleted
+                                                        className={`p-2 rounded text-xs border ${
+                                                            isCompleted
                                                                 ? "bg-slate-800 border-slate-700 opacity-60"
                                                                 : "bg-slate-800 border-slate-700 hover:border-indigo-500"
-                                                            }`}
+                                                        }`}
                                                     >
                                                         <div className="flex items-start gap-2">
                                                             <input
@@ -899,8 +906,9 @@ export default function App() {
                                                             />
                                                             <div className="flex-1 min-w-0">
                                                                 <div
-                                                                    className={`font-medium truncate ${isCompleted ? "line-through text-slate-500" : ""
-                                                                        }`}
+                                                                    className={`font-medium truncate ${
+                                                                        isCompleted ? "line-through text-slate-500" : ""
+                                                                    }`}
                                                                 >
                                                                     {task.name}
                                                                 </div>
@@ -965,22 +973,25 @@ export default function App() {
                                 return (
                                     <div
                                         key={date}
-                                        className={`rounded-lg p-2 border min-h-20 transition-all ${isTodayDate
-                                                ? 'bg-indigo-900 border-indigo-500 shadow-lg shadow-indigo-500/20'
+                                        className={`rounded-lg p-2 border min-h-20 transition-all ${
+                                            isTodayDate 
+                                                ? 'bg-indigo-900 border-indigo-500 shadow-lg shadow-indigo-500/20' 
                                                 : 'bg-slate-900 border-slate-700'
-                                            }`}
+                                        }`}
                                     >
                                         <div className="flex items-center justify-between mb-1">
-                                            <div className={`text-xs sm:text-sm font-semibold ${isTodayDate ? 'text-indigo-300' : 'text-slate-300'
-                                                }`}>
+                                            <div className={`text-xs sm:text-sm font-semibold ${
+                                                isTodayDate ? 'text-indigo-300' : 'text-slate-300'
+                                            }`}>
                                                 {dayNum}
                                             </div>
                                             <button
                                                 onClick={() => openTaskModal(date)}
-                                                className={`hover:scale-110 transition-transform text-sm leading-none w-5 h-5 flex items-center justify-center rounded ${isTodayDate
-                                                        ? 'text-indigo-300 hover:text-indigo-200'
+                                                className={`hover:scale-110 transition-transform text-sm leading-none w-5 h-5 flex items-center justify-center rounded ${
+                                                    isTodayDate 
+                                                        ? 'text-indigo-300 hover:text-indigo-200' 
                                                         : 'text-indigo-400 hover:text-indigo-300'
-                                                    }`}
+                                                }`}
                                                 title="Add task"
                                             >
                                                 +
@@ -992,10 +1003,11 @@ export default function App() {
                                                 return (
                                                     <div
                                                         key={task.id}
-                                                        className={`text-xs px-1 py-1 rounded truncate ${isCompleted
+                                                        className={`text-xs px-1 py-1 rounded truncate ${
+                                                            isCompleted
                                                                 ? "bg-slate-800 text-slate-500 line-through"
                                                                 : "bg-indigo-900 text-indigo-300"
-                                                            }`}
+                                                        }`}
                                                     >
                                                         {task.name}
                                                     </div>
@@ -1081,12 +1093,13 @@ export default function App() {
                                                         <span>Due: {task.dueDate}</span>
                                                         <span>+{task.xpReward} XP</span>
                                                         <span
-                                                            className={`px-2 py-1 rounded ${task.priority === "high"
+                                                            className={`px-2 py-1 rounded ${
+                                                                task.priority === "high"
                                                                     ? "bg-rose-900 text-rose-300"
                                                                     : task.priority === "medium"
-                                                                        ? "bg-yellow-900 text-yellow-300"
-                                                                        : "bg-slate-700 text-slate-300"
-                                                                }`}
+                                                                    ? "bg-yellow-900 text-yellow-300"
+                                                                    : "bg-slate-700 text-slate-300"
+                                                            }`}
                                                         >
                                                             {task.priority}
                                                         </span>
@@ -1354,10 +1367,11 @@ export default function App() {
                                             <button
                                                 key={avatar}
                                                 onClick={() => setCharacter({ ...character, avatar })}
-                                                className={`text-4xl p-3 rounded-lg transition ${character.avatar === avatar
+                                                className={`text-4xl p-3 rounded-lg transition ${
+                                                    character.avatar === avatar
                                                         ? "bg-indigo-600"
                                                         : "bg-slate-900 hover:bg-slate-700 border border-slate-700"
-                                                    }`}
+                                                }`}
                                             >
                                                 {avatar}
                                             </button>
@@ -1637,7 +1651,7 @@ export default function App() {
                                 <input type="text" placeholder="Project name" value={newProjectName} onChange={(e) => setNewProjectName(e.target.value)} className="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-lg text-slate-100" />
                                 <input type="text" placeholder="Description" value={newProjectDesc} onChange={(e) => setNewProjectDesc(e.target.value)} className="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-lg text-slate-100" />
                                 <div className="flex gap-3">
-
+                                    
                                     <button onClick={addProject} className="flex-1 bg-indigo-600 text-white px-6 py-3 rounded-lg">Create Project</button>
                                 </div>
                             </div>
@@ -1700,7 +1714,7 @@ export default function App() {
                                     <option value="charisma">Charisma</option>
                                 </select>
                                 <div className="flex gap-2 items-center">
-
+                                   
                                     <button onClick={addTaskClass} className="flex-1 bg-indigo-600 text-white px-4 py-2 rounded-lg">Add Class</button>
                                 </div>
                             </div>
@@ -1721,7 +1735,7 @@ export default function App() {
                             </div>
                         </div>
 
-
+                        
                     </div>
                 )}
             </div>
