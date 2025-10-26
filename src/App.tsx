@@ -240,6 +240,7 @@ export default function App() {
     const [editingTask, setEditingTask] = useState<Task | null>(null);
     const [showResetConfirm, setShowResetConfirm] = useState(false);
     const [showInfoPopup, setShowInfoPopup] = useState(false); // NOWE: popup z informacjami
+    const [showMobileMenu, setShowMobileMenu] = useState(false); // NOWE: mobile menu
 
     const [taskName, setTaskName] = useState("");
     const [taskDescription, setTaskDescription] = useState("");
@@ -264,6 +265,8 @@ export default function App() {
 
     const today = new Date().toISOString().slice(0, 10);
     const tomorrow = new Date(new Date().setDate(new Date().getDate() + 1)).toISOString().slice(0, 10);
+
+    // NOWE: Helper do pobierania aktywnych zadań (dzisiaj, jutro, flexible)
 
 
     function openTaskModal(date?: string) {
@@ -558,19 +561,19 @@ export default function App() {
         <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-slate-100 p-2 sm:p-4">
             <div className="max-w-7xl mx-auto">
                 {/* Top Bar */}
-                <div className="bg-slate-800 rounded-xl shadow-xl p-4 sm:p-6 mb-4 border border-slate-700">
-                    <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-                        <div className="flex items-center gap-4">
-                            <div className="text-5xl">{character.avatar}</div>
-                            <div>
-                                <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">
+                <div className="bg-slate-800 rounded-xl shadow-xl p-3 sm:p-4 md:p-6 mb-4 border border-slate-700">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
+                        <div className="flex items-center gap-3 sm:gap-4 w-full sm:w-auto">
+                            <div className="text-4xl sm:text-5xl flex-shrink-0">{character.avatar}</div>
+                            <div className="flex-1 min-w-0">
+                                <h1 className="text-xl sm:text-2xl md:text-3xl font-bold bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent truncate">
                                     {character.name}
                                 </h1>
-                                <p className="text-slate-400 text-sm">Level {character.level} Adventurer</p>
+                                <p className="text-slate-400 text-xs sm:text-sm">Level {character.level} Adventurer</p>
                             </div>
                         </div>
-                        <div className="w-full sm:w-64">
-                            <div className="flex justify-between text-sm mb-1">
+                        <div className="w-full sm:w-48 md:w-64">
+                            <div className="flex justify-between text-xs sm:text-sm mb-1">
                                 <span className="text-slate-400">XP</span>
                                 <span className="text-indigo-400 font-semibold">
                                     {character.xp} / {xpForNextLevel}
@@ -582,48 +585,135 @@ export default function App() {
                 </div>
 
                 {/* Navigation */}
-                <div className="bg-slate-800 rounded-xl shadow-xl p-2 mb-4 border border-slate-700 overflow-x-auto">
-                    <div className="flex gap-2 min-w-max">
-                        {[
-                            { id: "daily", label: "Daily", icon: "📅" },
-                            { id: "weekly", label: "Weekly", icon: "📊" },
-                            { id: "monthly", label: "Monthly", icon: "📆" },
-                            { id: "all", label: "All", icon: "📋" },
-                            { id: "projects", label: "Projects", icon: "🎯" },
-                            { id: "character", label: "Character", icon: "⚔️" },
-                            { id: "activeTasks", label: "Active Tasks", icon: "🔥" }, // NOWE
-                            { id: "settings", label: "Settings", icon: "⚙️" },
-                        ].map(item => (
-                            <button
-                                key={item.id}
-                                onClick={() => setView(item.id as any)}
-                                className={`px-4 py-3 rounded-lg font-medium transition-all ${view === item.id
-                                    ? "bg-indigo-600 text-white shadow-lg"
-                                    : "bg-slate-900 text-slate-300 hover:bg-slate-700"
-                                    }`}
+                <div className="bg-slate-800 rounded-xl shadow-xl border border-slate-700 mb-4">
+                    {/* Mobile: Hamburger + Current View */}
+                    <div className="lg:hidden flex items-center justify-between p-4">
+                        <div className="flex items-center gap-2">
+                            <span className="text-2xl">
+                                {view === "daily" && "📅"}
+                                {view === "weekly" && "📊"}
+                                {view === "monthly" && "📆"}
+                                {view === "all" && "📋"}
+                                {view === "projects" && "🎯"}
+                                {view === "character" && "⚔️"}
+                                {view === "activeTasks" && "🔥"}
+                                {view === "settings" && "⚙️"}
+                            </span>
+                            <span className="font-semibold text-lg">
+                                {view === "daily" && "Daily"}
+                                {view === "weekly" && "Weekly"}
+                                {view === "monthly" && "Monthly"}
+                                {view === "all" && "All Tasks"}
+                                {view === "projects" && "Projects"}
+                                {view === "character" && "Character"}
+                                {view === "activeTasks" && "Active Tasks"}
+                                {view === "settings" && "Settings"}
+                            </span>
+                        </div>
+                        <button
+                            onClick={() => setShowMobileMenu(!showMobileMenu)}
+                            className="p-2 rounded-lg bg-slate-900 hover:bg-slate-700 transition"
+                        >
+                            <svg
+                                className="w-6 h-6"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
                             >
-                                <span className="mr-2">{item.icon}</span>
-                                {item.label}
-                            </button>
-                        ))}
+                                {showMobileMenu ? (
+                                    <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth={2}
+                                        d="M6 18L18 6M6 6l12 12"
+                                    />
+                                ) : (
+                                    <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth={2}
+                                        d="M4 6h16M4 12h16M4 18h16"
+                                    />
+                                )}
+                            </svg>
+                        </button>
+                    </div>
+
+                    {/* Mobile Menu Dropdown */}
+                    {showMobileMenu && (
+                        <div className="lg:hidden border-t border-slate-700 p-2 space-y-1">
+                            {[
+                                { id: "daily", label: "Daily", icon: "📅" },
+                                { id: "weekly", label: "Weekly", icon: "📊" },
+                                { id: "monthly", label: "Monthly", icon: "📆" },
+                                { id: "all", label: "All", icon: "📋" },
+                                { id: "projects", label: "Projects", icon: "🎯" },
+                                { id: "character", label: "Character", icon: "⚔️" },
+                                { id: "activeTasks", label: "Active Tasks", icon: "🔥" },
+                                { id: "settings", label: "Settings", icon: "⚙️" },
+                            ].map(item => (
+                                <button
+                                    key={item.id}
+                                    onClick={() => {
+                                        setView(item.id as any);
+                                        setShowMobileMenu(false);
+                                    }}
+                                    className={`w-full text-left px-4 py-3 rounded-lg font-medium transition-all ${view === item.id
+                                        ? "bg-indigo-600 text-white shadow-lg"
+                                        : "bg-slate-900 text-slate-300 hover:bg-slate-700"
+                                        }`}
+                                >
+                                    <span className="mr-2">{item.icon}</span>
+                                    {item.label}
+                                </button>
+                            ))}
+                        </div>
+                    )}
+
+                    {/* Desktop: Horizontal Menu */}
+                    <div className="hidden lg:block p-2 overflow-x-auto">
+                        <div className="flex gap-2">
+                            {[
+                                { id: "daily", label: "Daily", icon: "📅" },
+                                { id: "weekly", label: "Weekly", icon: "📊" },
+                                { id: "monthly", label: "Monthly", icon: "📆" },
+                                { id: "all", label: "All", icon: "📋" },
+                                { id: "projects", label: "Projects", icon: "🎯" },
+                                { id: "character", label: "Character", icon: "⚔️" },
+                                { id: "activeTasks", label: "Active Tasks", icon: "🔥" },
+                                { id: "settings", label: "Settings", icon: "⚙️" },
+                            ].map(item => (
+                                <button
+                                    key={item.id}
+                                    onClick={() => setView(item.id as any)}
+                                    className={`px-4 py-3 rounded-lg font-medium transition-all whitespace-nowrap ${view === item.id
+                                        ? "bg-indigo-600 text-white shadow-lg"
+                                        : "bg-slate-900 text-slate-300 hover:bg-slate-700"
+                                        }`}
+                                >
+                                    <span className="mr-2">{item.icon}</span>
+                                    {item.label}
+                                </button>
+                            ))}
+                        </div>
                     </div>
                 </div>
 
                 {/* Daily View */}
                 {view === "daily" && (
                     <div className="bg-slate-800 rounded-xl shadow p-4 sm:p-6 border border-slate-700 max-w-7xl mx-auto">
-                        <div className="flex justify-between items-center mb-6">
+                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
                             <h2 className="text-2xl font-semibold">Daily Quests</h2>
-                            <div className="flex items-center gap-3">
+                            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
                                 <input
                                     type="date"
                                     value={selectedDate}
                                     onChange={(e) => setSelectedDate(e.target.value)}
-                                    className="px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-slate-100"
+                                    className="px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-slate-100 w-full sm:w-auto"
                                 />
                                 <button
                                     onClick={() => openTaskModal(selectedDate)}
-                                    className="bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700 transition"
+                                    className="bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700 transition w-full sm:w-auto"
                                 >
                                     + Add Quest
                                 </button>
@@ -646,35 +736,35 @@ export default function App() {
                                     return (
                                         <div
                                             key={task.id}
-                                            className={`bg-slate-900 rounded-lg p-4 border border-slate-700 transition-all ${isCompleted ? "opacity-60" : ""
+                                            className={`bg-slate-900 rounded-lg p-3 sm:p-4 border border-slate-700 transition-all ${isCompleted ? "opacity-60" : ""
                                                 }`}
                                         >
-                                            <div className="flex items-start gap-4">
+                                            <div className="flex items-start gap-3 sm:gap-4">
                                                 <input
                                                     type="checkbox"
                                                     checked={isCompleted}
                                                     onChange={() => toggleTask(task.id, selectedDate)}
-                                                    className="mt-1 w-5 h-5 rounded border-slate-600 text-indigo-600 focus:ring-indigo-500"
+                                                    className="mt-1 w-5 h-5 sm:w-6 sm:h-6 rounded border-slate-600 text-indigo-600 focus:ring-indigo-500 flex-shrink-0"
                                                 />
-                                                <div className="flex-1">
-                                                    <div className="flex items-start justify-between">
-                                                        <div className="flex-1">
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="flex items-start justify-between gap-2">
+                                                        <div className="flex-1 min-w-0">
                                                             <h3
-                                                                className={`text-lg font-semibold ${isCompleted ? "line-through text-slate-500" : ""
+                                                                className={`text-base sm:text-lg font-semibold break-words ${isCompleted ? "line-through text-slate-500" : ""
                                                                     }`}
                                                             >
                                                                 {task.name}
                                                             </h3>
                                                             {task.description && (
-                                                                <p className="text-sm text-slate-400 mt-1">{task.description}</p>
+                                                                <p className="text-xs sm:text-sm text-slate-400 mt-1 break-words">{task.description}</p>
                                                             )}
                                                             <div className="flex flex-wrap gap-2 mt-3">
-                                                                <span className="text-xs px-3 py-1 rounded-full bg-indigo-900 text-indigo-300 border border-indigo-700">
+                                                                <span className="text-xs px-2 sm:px-3 py-1 rounded-full bg-indigo-900 text-indigo-300 border border-indigo-700">
                                                                     {task.xpReward} XP
                                                                 </span>
                                                                 {task.priority && (
                                                                     <span
-                                                                        className={`text-xs px-3 py-1 rounded-full ${task.priority === "high"
+                                                                        className={`text-xs px-2 sm:px-3 py-1 rounded-full ${task.priority === "high"
                                                                             ? "bg-rose-900 text-rose-300 border border-rose-700"
                                                                             : task.priority === "medium"
                                                                                 ? "bg-amber-900 text-amber-300 border border-amber-700"
@@ -686,7 +776,7 @@ export default function App() {
                                                                 )}
                                                                 {project && (
                                                                     <span
-                                                                        className="text-xs px-3 py-1 rounded-full border"
+                                                                        className="text-xs px-2 sm:px-3 py-1 rounded-full border"
                                                                         style={{
                                                                             borderColor: project.color,
                                                                             color: project.color,
@@ -698,7 +788,7 @@ export default function App() {
                                                                 )}
                                                                 {taskClass && (
                                                                     <span
-                                                                        className="text-xs px-3 py-1 rounded-full border"
+                                                                        className="text-xs px-2 sm:px-3 py-1 rounded-full border"
                                                                         style={{
                                                                             borderColor: taskClass.color,
                                                                             color: taskClass.color,
@@ -710,7 +800,7 @@ export default function App() {
                                                                 )}
                                                                 {skill && (
                                                                     <span
-                                                                        className="text-xs px-3 py-1 rounded-full border"
+                                                                        className="text-xs px-2 sm:px-3 py-1 rounded-full border"
                                                                         style={{
                                                                             borderColor: skill.color,
                                                                             color: skill.color,
@@ -721,22 +811,22 @@ export default function App() {
                                                                     </span>
                                                                 )}
                                                                 {task.isRecurring && (
-                                                                    <span className="text-xs px-3 py-1 rounded-full bg-purple-900 text-purple-300 border border-purple-700">
+                                                                    <span className="text-xs px-2 sm:px-3 py-1 rounded-full bg-purple-900 text-purple-300 border border-purple-700">
                                                                         🔄 {task.recurringType}
                                                                     </span>
                                                                 )}
                                                             </div>
                                                         </div>
-                                                        <div className="flex gap-2 ml-4">
+                                                        <div className="flex gap-1 sm:gap-2 flex-shrink-0">
                                                             <button
                                                                 onClick={() => openEditModal(task)}
-                                                                className="text-slate-400 hover:text-indigo-400 transition"
+                                                                className="text-slate-400 hover:text-indigo-400 transition p-1 text-lg sm:text-xl"
                                                             >
                                                                 ✏️
                                                             </button>
                                                             <button
                                                                 onClick={() => deleteTask(task.id)}
-                                                                className="text-slate-400 hover:text-rose-400 transition"
+                                                                className="text-slate-400 hover:text-rose-400 transition p-1 text-lg sm:text-xl"
                                                             >
                                                                 🗑️
                                                             </button>
@@ -1330,23 +1420,23 @@ export default function App() {
                     <div className="bg-slate-800 rounded-xl shadow p-4 sm:p-6 border border-slate-700 max-w-7xl mx-auto">
                         <h2 className="text-2xl font-semibold mb-6">Character Profile</h2>
 
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                            <div className="bg-slate-900 rounded-lg p-6 border border-slate-700">
-                                <div className="flex items-center gap-4 mb-6">
-                                    <div className="text-6xl">{character.avatar}</div>
-                                    <div className="flex-1">
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+                            <div className="bg-slate-900 rounded-lg p-4 sm:p-6 border border-slate-700">
+                                <div className="flex items-center gap-3 sm:gap-4 mb-6">
+                                    <div className="text-5xl sm:text-6xl flex-shrink-0">{character.avatar}</div>
+                                    <div className="flex-1 min-w-0">
                                         <input
                                             type="text"
                                             value={character.name}
                                             onChange={(e) => setCharacter({ ...character, name: e.target.value })}
-                                            className="w-full text-2xl font-bold bg-transparent border-b-2 border-slate-700 focus:border-indigo-500 outline-none pb-1"
+                                            className="w-full text-xl sm:text-2xl font-bold bg-transparent border-b-2 border-slate-700 focus:border-indigo-500 outline-none pb-1"
                                         />
-                                        <p className="text-slate-400 mt-1">Level {character.level}</p>
+                                        <p className="text-slate-400 mt-1 text-sm sm:text-base">Level {character.level}</p>
                                     </div>
                                 </div>
 
                                 <div className="mb-4">
-                                    <div className="flex justify-between text-sm mb-2">
+                                    <div className="flex justify-between text-xs sm:text-sm mb-2">
                                         <span>XP Progress</span>
                                         <span className="text-indigo-400">
                                             {character.xp} / {xpForNextLevel}
@@ -1360,7 +1450,7 @@ export default function App() {
                                         <button
                                             key={avatar}
                                             onClick={() => setCharacter({ ...character, avatar })}
-                                            className={`text-4xl p-3 rounded-lg transition ${character.avatar === avatar
+                                            className={`text-3xl sm:text-4xl p-2 sm:p-3 rounded-lg transition ${character.avatar === avatar
                                                 ? "bg-indigo-900 border-2 border-indigo-500"
                                                 : "bg-slate-800 hover:bg-slate-700 border-2 border-transparent"
                                                 }`}
@@ -1370,7 +1460,7 @@ export default function App() {
                                     ))}
                                 </div>
 
-                                <div className="space-y-2 text-sm text-slate-300">
+                                <div className="space-y-2 text-xs sm:text-sm text-slate-300">
                                     <div className="flex justify-between">
                                         <span>Total XP Earned:</span>
                                         <span className="text-indigo-400 font-semibold">{character.totalXp}</span>
@@ -1388,8 +1478,8 @@ export default function App() {
                                 </div>
                             </div>
 
-                            <div className="bg-slate-900 rounded-lg p-6 border border-slate-700">
-                                <h3 className="text-xl font-semibold mb-4">Stats</h3>
+                            <div className="bg-slate-900 rounded-lg p-4 sm:p-6 border border-slate-700">
+                                <h3 className="text-lg sm:text-xl font-semibold mb-4">Stats</h3>
                                 <div className="space-y-4">
                                     {[
                                         { name: "Strength", key: "strength", icon: "💪" },
@@ -1403,10 +1493,10 @@ export default function App() {
                                         return (
                                             <div key={stat.key}>
                                                 <div className="flex justify-between items-center mb-2">
-                                                    <span className="text-sm">
+                                                    <span className="text-xs sm:text-sm">
                                                         {stat.icon} {stat.name}
                                                     </span>
-                                                    <span className="text-lg font-bold text-indigo-400">{value}</span>
+                                                    <span className="text-base sm:text-lg font-bold text-indigo-400">{value}</span>
                                                 </div>
                                                 <ProgressBar value={progress} max={value + 1} />
                                                 <p className="text-xs text-slate-400 mt-1">
