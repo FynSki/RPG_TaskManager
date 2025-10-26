@@ -5,7 +5,11 @@ import { useEffect, useState } from "react";
  * - Full app: daily/weekly/monthly/all/projects/settings
  * - Stats: strength / dexterity / intelligence with n+1 progression
  * - Task class mapping to stats
- * - NEW: Skills system (user-created skills, assignable to tasks, progress/levels)
+ * - Skills system (user-created skills, assignable to tasks, progress/levels)
+ * - NEW: Completed task preview in All view
+ * - NEW: Flexible tasks (no due date)
+ * - NEW: Active Tasks view
+ * - NEW: Info popup in Settings
  * - Persistence: localStorage
  */
 
@@ -33,15 +37,17 @@ type Task = {
     completed: boolean;
     xpReward: number;
     priority: "low" | "medium" | "high";
-    dueDate: string;
+    dueDate: string; // może być pusty string dla flexible tasks
     subtasks: SubTask[];
     createdAt: string;
+    completedAt?: string; // NOWE: data zakończenia zadania
     isRecurring?: boolean;
     recurringType?: "daily" | "weekly" | "monthly";
     recurringDay?: number;
     statType?: "strength" | "endurance" | "intelligence" | "agility" | "charisma" | null;
     classId?: string | null;
     skillId?: string | null;
+    isFlexible?: boolean; // NOWE: zadania bez due date
 };
 
 type Character = {
@@ -160,43 +166,56 @@ function getDayName(dateStr: string): string {
 }
 
 // NOWA FUNKCJA: Formatowanie daty do DD.MM
-function formatDateDayMonth(dateStr: string): string {
-    const date = new Date(dateStr);
-    const day = date.getDate().toString().padStart(2, "0");
-    const month = (date.getMonth() + 1).toString().padStart(2, "0");
+function formatShortDate(dateStr: string): string {
+    if (!dateStr) return "";
+    const [, month, day] = dateStr.split("-");
     return `${day}.${month}`;
 }
 
-// NOWA FUNKCJA: Sprawdzanie czy data jest dzisiaj
-function isToday(dateStr: string): boolean {
-    const today = new Date().toISOString().slice(0, 10);
-    return dateStr === today;
+// NOWA FUNKCJA: Formatowanie pełnej daty z godziną
+function formatFullDateTime(dateStr: string): string {
+    if (!dateStr) return "";
+    const date = new Date(dateStr);
+    return date.toLocaleString('pl-PL', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+    });
 }
 
-type ProgressBarProps = {
-    value: number;
-    max: number;
-};
-
-function ProgressBar({ value, max }: ProgressBarProps) {
-    const pct = Math.min((value / max) * 100, 100);
+/* -----------------------------
+   Utility Components
+   ----------------------------- */
+function ProgressBar({ value, max }: { value: number; max: number }) {
+    const pct = (value / max) * 100;
     return (
-        <div className="relative w-full bg-slate-700 rounded-full h-3 overflow-hidden border border-slate-600">
+        <div className="relative w-full h-2 bg-slate-700 rounded-full overflow-hidden border border-slate-600">
             <div
-                className="h-full bg-gradient-to-r from-indigo-500 to-indigo-400 transition-all duration-500"
+                className="absolute top-0 left-0 h-full bg-gradient-to-r from-indigo-600 to-indigo-500 transition-all duration-500"
                 style={{ width: `${pct}%` }}
             />
         </div>
     );
 }
 
+/* -----------------------------
+   Main App
+   ----------------------------- */
 export default function App() {
+    const [view, setView] = useState<"daily" | "weekly" | "monthly" | "all" | "projects" | "character" | "settings" | "activeTasks">("daily");
+    const [tasks, setTasks] = usePersistedState<Task[]>("tasks", []);
+    const [projects, setProjects] = usePersistedState<Project[]>("projects", []);
+    const [taskClasses, setTaskClasses] = usePersistedState<TaskClass[]>("taskClasses", []);
+    const [skills, setSkills] = usePersistedState<Skill[]>("skills", []);
+
     const [character, setCharacter] = usePersistedState<Character>("character", {
-        name: "Hero",
+        name: "Adventurer",
         level: 1,
         xp: 0,
         totalXp: 0,
-        avatar: AVATARS[0],
+        avatar: "⚔️",
         strength: 1,
         strengthProgress: 0,
         endurance: 1,
@@ -210,29 +229,30 @@ export default function App() {
         unspentPoints: 0,
     });
 
-    const [tasks, setTasks] = usePersistedState<Task[]>("tasks", []);
-    const [projects, setProjects] = usePersistedState<Project[]>("projects", []);
-    const [completions, setCompletions] = usePersistedState<RecurringTaskCompletion[]>("completions", []);
-    const [taskClasses, setTaskClasses] = usePersistedState<TaskClass[]>("taskClasses", []);
-    const [skills, setSkills] = usePersistedState<Skill[]>("skills", []);
+    const [recurringCompletions, setRecurringCompletions] = usePersistedState<RecurringTaskCompletion[]>("recurringCompletions", []);
 
-    const [view, setView] = useState<"daily" | "weekly" | "monthly" | "all" | "projects" | "settings">("settings");
     const [selectedDate, setSelectedDate] = useState(new Date().toISOString().slice(0, 10));
+    const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7));
 
     const [showTaskModal, setShowTaskModal] = useState(false);
+    const [showCompletedTaskModal, setShowCompletedTaskModal] = useState(false); // NOWE: modal dla podglądu
+    const [viewingTask, setViewingTask] = useState<Task | null>(null); // NOWE: zadanie do podglądu
     const [editingTask, setEditingTask] = useState<Task | null>(null);
+    const [showResetConfirm, setShowResetConfirm] = useState(false);
+    const [showInfoPopup, setShowInfoPopup] = useState(false); // NOWE: popup z informacjami
 
     const [taskName, setTaskName] = useState("");
-    const [taskDesc, setTaskDesc] = useState("");
-    const [taskProject, setTaskProject] = useState<string | null>(null);
+    const [taskDescription, setTaskDescription] = useState("");
     const [taskPriority, setTaskPriority] = useState<"low" | "medium" | "high">("medium");
-    const [taskXp, setTaskXp] = useState(50);
-    const [taskDueDate, setTaskDueDate] = useState(selectedDate);
-    const [taskRecurring, setTaskRecurring] = useState(false);
+    const [taskDueDate, setTaskDueDate] = useState("");
+    const [taskXpReward, setTaskXpReward] = useState(50);
+    const [taskProjectId, setTaskProjectId] = useState<string>("");
+    const [taskIsRecurring, setTaskIsRecurring] = useState(false);
     const [taskRecurringType, setTaskRecurringType] = useState<"daily" | "weekly" | "monthly">("daily");
-    const [taskRecurringDay, setTaskRecurringDay] = useState(1);
-    const [taskClass, setTaskClass] = useState<string | null>(null);
-    const [taskSkill, setTaskSkill] = useState<string | null>(null);
+    const [taskRecurringDay, setTaskRecurringDay] = useState<number>(1);
+    const [taskClassId, setTaskClassId] = useState<string>("");
+    const [taskSkillId, setTaskSkillId] = useState<string>("");
+    const [taskIsFlexible, setTaskIsFlexible] = useState(false); // NOWE: checkbox dla flexible task
 
     const [newProjectName, setNewProjectName] = useState("");
     const [newProjectDesc, setNewProjectDesc] = useState("");
@@ -240,304 +260,194 @@ export default function App() {
     const [newClassName, setNewClassName] = useState("");
     const [newClassStat, setNewClassStat] = useState<"strength" | "endurance" | "intelligence" | "agility" | "charisma">("strength");
 
-    const [showResetConfirm, setShowResetConfirm] = useState(false);
-
     const [newSkillName, setNewSkillName] = useState("");
 
-    useEffect(() => {
-        if (character.xp >= calculateXpForLevel(character.level)) {
-            const newLevel = character.level + 1;
-            setCharacter({
-                ...character,
-                level: newLevel,
-                xp: 0,
-                unspentPoints: character.unspentPoints + 1,
-            });
-        }
-    }, [character, setCharacter]);
+    const today = new Date().toISOString().slice(0, 10);
+    const tomorrow = new Date(new Date().setDate(new Date().getDate() + 1)).toISOString().slice(0, 10);
 
-    function getTasksForDate(date: string): Task[] {
-        const dateObj = new Date(date);
-        const dayOfMonth = dateObj.getDate();
-        const dayOfWeek = dateObj.getDay();
-        const today = new Date().toISOString().slice(0, 10);
-
-        return tasks.filter((task) => {
-            if (task.completed && !task.isRecurring) {
-                return false;
-            }
-
-            if (task.isRecurring) {
-                // Nie pokazuj zadań powtarzalnych w przeszłości (przed dzisiejszym dniem)
-                if (date < today) return false;
-
-                // Nie pokazuj zadań powtarzalnych przed datą ich utworzenia
-                const taskCreatedDate = task.createdAt.slice(0, 10);
-                if (date < taskCreatedDate) return false;
-
-                const completedToday = completions.some(
-                    (c) => c.taskId === task.id && c.date === date && c.completed
-                );
-                if (completedToday) return false;
-
-                if (task.recurringType === "daily") return true;
-                if (task.recurringType === "weekly" && dayOfWeek === (task.recurringDay ?? 1)) {
-                    return true;
-                }
-                if (task.recurringType === "monthly" && dayOfMonth === (task.recurringDay ?? 1)) {
-                    return true;
-                }
-                return false;
-            }
-
-            return task.dueDate === date;
+    // NOWE: Helper do pobierania aktywnych zadań (dzisiaj, jutro, flexible)
+    function getActiveTasks() {
+        return tasks.filter(t => {
+            if (t.completed) return false;
+            if (t.isFlexible) return true;
+            if (t.dueDate === today || t.dueDate === tomorrow) return true;
+            return false;
         });
     }
 
-    function completeTask(task: Task, date: string) {
-        if (task.isRecurring) {
-            const alreadyCompleted = completions.some(
-                (c) => c.taskId === task.id && c.date === date && c.completed
-            );
-            if (alreadyCompleted) return;
-            setCompletions([...completions, { taskId: task.id, date, completed: true }]);
-        } else {
-            setTasks(tasks.map((t) => (t.id === task.id ? { ...t, completed: true } : t)));
-        }
-
-        // XP reward
-        const newXp = character.xp + task.xpReward;
-        const newTotalXp = character.totalXp + task.xpReward;
-        setCharacter({ ...character, xp: newXp, totalXp: newTotalXp });
-
-        // Stat progress increase - class ma pierwszeństwo nad statType
-        if (task.classId) {
-            const classObj = taskClasses.find((c) => c.id === task.classId);
-            if (classObj) {
-                const statType = classObj.statType;
-                const progressKey = `${statType}Progress` as keyof Character;
-                const statKey = statType as keyof Character;
-                const currentProgress = character[progressKey] as number;
-                const currentStatLevel = character[statKey] as number;
-                const newProgress = currentProgress + 1;
-
-                // Sprawdź czy progress wypełnił się do następnego poziomu
-                if (newProgress >= currentStatLevel + 1) {
-                    setCharacter((ch) => ({
-                        ...ch,
-                        [statKey]: (ch[statKey] as number) + 1,
-                        [progressKey]: 0,
-                    }));
-                } else {
-                    setCharacter((ch) => ({
-                        ...ch,
-                        [progressKey]: newProgress,
-                    }));
-                }
-            }
-        } else if (task.statType) {
-            const statType = task.statType;
-            const progressKey = `${statType}Progress` as keyof Character;
-            const statKey = statType as keyof Character;
-            const currentProgress = character[progressKey] as number;
-            const currentStatLevel = character[statKey] as number;
-            const newProgress = currentProgress + 1;
-
-            // Sprawdź czy progress wypełnił się do następnego poziomu
-            if (newProgress >= currentStatLevel + 1) {
-                setCharacter((ch) => ({
-                    ...ch,
-                    [statKey]: (ch[statKey] as number) + 1,
-                    [progressKey]: 0,
-                }));
-            } else {
-                setCharacter((ch) => ({
-                    ...ch,
-                    [progressKey]: newProgress,
-                }));
-            }
-        }
-
-        // Skill progress
-        if (task.skillId) {
-            const skill = skills.find((s) => s.id === task.skillId);
-            if (skill) {
-                const newProgress = skill.progress + 1;
-                if (newProgress >= skill.level + 1) {
-                    setSkills(
-                        skills.map((s) =>
-                            s.id === skill.id ? { ...s, level: s.level + 1, progress: 0 } : s
-                        )
-                    );
-                } else {
-                    setSkills(
-                        skills.map((s) => (s.id === skill.id ? { ...s, progress: newProgress } : s))
-                    );
-                }
-            }
-        }
-    }
-
-    function uncompleteTask(task: Task, date: string) {
-        if (task.isRecurring) {
-            setCompletions(completions.filter((c) => !(c.taskId === task.id && c.date === date)));
-        } else {
-            setTasks(tasks.map((t) => (t.id === task.id ? { ...t, completed: false } : t)));
-        }
-
-        // Remove XP
-        const newXp = character.xp - task.xpReward;
-        const newTotalXp = character.totalXp - task.xpReward;
-        setCharacter({ ...character, xp: newXp, totalXp: newTotalXp });
-
-        // Decrease stat progress - class ma pierwszeństwo nad statType
-        if (task.classId) {
-            const classObj = taskClasses.find((c) => c.id === task.classId);
-            if (classObj) {
-                const statType = classObj.statType;
-                const progressKey = `${statType}Progress` as keyof Character;
-                const currentProgress = character[progressKey] as number;
-                const newProgress = Math.max(0, currentProgress - 1);
-                setCharacter((ch) => ({
-                    ...ch,
-                    [progressKey]: newProgress,
-                }));
-            }
-        } else if (task.statType) {
-            const statType = task.statType;
-            const progressKey = `${statType}Progress` as keyof Character;
-            const currentProgress = character[progressKey] as number;
-            const newProgress = Math.max(0, currentProgress - 1);
-            setCharacter((ch) => ({
-                ...ch,
-                [progressKey]: newProgress,
-            }));
-        }
-
-        // Decrease skill progress
-        if (task.skillId) {
-            const skill = skills.find((s) => s.id === task.skillId);
-            if (skill) {
-                const newProgress = Math.max(0, skill.progress - 1);
-                setSkills(skills.map((s) => (s.id === skill.id ? { ...s, progress: newProgress } : s)));
-            }
-        }
-    }
-
-    function isTaskCompleted(task: Task, date: string): boolean {
-        if (task.isRecurring) {
-            return completions.some((c) => c.taskId === task.id && c.date === date && c.completed);
-        }
-        return task.completed;
-    }
-
-    function openTaskModal(date: string | null = null) {
-        const targetDate = date || selectedDate;
-        setTaskDueDate(targetDate);
+    function openTaskModal(date?: string) {
+        setEditingTask(null);
+        setTaskName("");
+        setTaskDescription("");
+        setTaskPriority("medium");
+        setTaskDueDate(date || selectedDate);
+        setTaskXpReward(50);
+        setTaskProjectId("");
+        setTaskIsRecurring(false);
+        setTaskRecurringType("daily");
+        setTaskRecurringDay(1);
+        setTaskClassId("");
+        setTaskSkillId("");
+        setTaskIsFlexible(false); // NOWE: reset flexible
         setShowTaskModal(true);
+    }
+
+    function openEditModal(task: Task) {
+        setEditingTask(task);
+        setTaskName(task.name);
+        setTaskDescription(task.description);
+        setTaskPriority(task.priority);
+        setTaskDueDate(task.dueDate);
+        setTaskXpReward(task.xpReward);
+        setTaskProjectId(task.projectId || "");
+        setTaskIsRecurring(task.isRecurring || false);
+        setTaskRecurringType(task.recurringType || "daily");
+        setTaskRecurringDay(task.recurringDay || 1);
+        setTaskClassId(task.classId || "");
+        setTaskSkillId(task.skillId || "");
+        setTaskIsFlexible(task.isFlexible || false); // NOWE
+        setShowTaskModal(true);
+    }
+
+    // NOWE: Funkcja do otwierania podglądu ukończonego zadania
+    function openCompletedTaskView(task: Task) {
+        setViewingTask(task);
+        setShowCompletedTaskModal(true);
     }
 
     function closeTaskModal() {
         setShowTaskModal(false);
         setEditingTask(null);
-        setTaskName("");
-        setTaskDesc("");
-        setTaskProject(null);
-        setTaskPriority("medium");
-        setTaskXp(50);
-        setTaskDueDate(selectedDate);
-        setTaskRecurring(false);
-        setTaskRecurringType("daily");
-        setTaskRecurringDay(1);
-        setTaskClass(null);
-        setTaskSkill(null);
     }
 
     function saveTask() {
         if (!taskName.trim()) return;
 
-        let chosenClass = taskClass;
-        let chosenStat: "strength" | "endurance" | "intelligence" | "agility" | "charisma" | null = null;
-
-        if (chosenClass) {
-            const c = taskClasses.find((tc) => tc.id === chosenClass);
-            if (c) chosenStat = c.statType;
-        }
+        const taskData: Task = {
+            id: editingTask?.id || Date.now().toString(),
+            projectId: taskProjectId || null,
+            name: taskName,
+            description: taskDescription,
+            completed: editingTask?.completed || false,
+            completedAt: editingTask?.completedAt, // NOWE: zachowaj completedAt
+            xpReward: taskXpReward,
+            priority: taskPriority,
+            dueDate: taskIsFlexible ? "" : taskDueDate, // NOWE: puste due date dla flexible
+            subtasks: editingTask?.subtasks || [],
+            createdAt: editingTask?.createdAt || new Date().toISOString(),
+            isRecurring: taskIsRecurring,
+            recurringType: taskIsRecurring ? taskRecurringType : undefined,
+            recurringDay: taskIsRecurring && taskRecurringType !== "daily" ? taskRecurringDay : undefined,
+            classId: taskClassId || null,
+            skillId: taskSkillId || null,
+            isFlexible: taskIsFlexible, // NOWE
+        };
 
         if (editingTask) {
-            setTasks(
-                tasks.map((t) =>
-                    t.id === editingTask.id
-                        ? {
-                            ...t,
-                            name: taskName,
-                            description: taskDesc,
-                            projectId: taskProject,
-                            priority: taskPriority,
-                            xpReward: taskXp,
-                            dueDate: taskDueDate,
-                            isRecurring: taskRecurring,
-                            recurringType: taskRecurring ? taskRecurringType : undefined,
-                            recurringDay: taskRecurring ? taskRecurringDay : undefined,
-                            classId: chosenClass,
-                            statType: chosenStat,
-                            skillId: taskSkill,
-                        }
-                        : t
-                )
-            );
+            setTasks(tasks.map(t => (t.id === editingTask.id ? taskData : t)));
         } else {
-            const newTask: Task = {
-                id: Date.now().toString(),
-                projectId: taskProject,
-                name: taskName,
-                description: taskDesc,
-                completed: false,
-                xpReward: taskXp,
-                priority: taskPriority,
-                dueDate: taskDueDate,
-                subtasks: [],
-                createdAt: new Date().toISOString(),
-                isRecurring: taskRecurring,
-                recurringType: taskRecurring ? taskRecurringType : undefined,
-                recurringDay: taskRecurring ? taskRecurringDay : undefined,
-                classId: chosenClass,
-                statType: chosenStat,
-                skillId: taskSkill,
-            };
-            setTasks([...tasks, newTask]);
+            setTasks([...tasks, taskData]);
         }
+
         closeTaskModal();
     }
 
-    function deleteTask(id: string) {
-        setTasks(tasks.filter((t) => t.id !== id));
+    function deleteTask(taskId: string) {
+        setTasks(tasks.filter(t => t.id !== taskId));
     }
 
-    function editTask(task: Task) {
-        setEditingTask(task);
-        setTaskName(task.name);
-        setTaskDesc(task.description);
-        setTaskProject(task.projectId);
-        setTaskPriority(task.priority);
-        setTaskXp(task.xpReward);
-        setTaskDueDate(task.dueDate);
-        setTaskRecurring(task.isRecurring || false);
-        setTaskRecurringType(task.recurringType || "daily");
-        setTaskRecurringDay(task.recurringDay || 1);
-        setTaskClass(task.classId || null);
-        setTaskSkill(task.skillId || null);
-        setShowTaskModal(true);
+    function toggleTask(taskId: string, date?: string) {
+        const task = tasks.find(t => t.id === taskId);
+        if (!task) return;
+
+        if (task.isRecurring && date) {
+            const existing = recurringCompletions.find(rc => rc.taskId === taskId && rc.date === date);
+            if (existing) {
+                setRecurringCompletions(recurringCompletions.map(rc => rc.taskId === taskId && rc.date === date ? { ...rc, completed: !rc.completed } : rc));
+            } else {
+                setRecurringCompletions([...recurringCompletions, { taskId, date, completed: true }]);
+            }
+
+            const isCompleting = !existing?.completed;
+            if (isCompleting) {
+                awardXP(task.xpReward, task);
+            }
+        } else {
+            const wasCompleted = task.completed;
+            const updatedTask = {
+                ...task,
+                completed: !task.completed,
+                completedAt: !task.completed ? new Date().toISOString() : undefined, // NOWE: zapisz datę zakończenia
+                dueDate: task.isFlexible && !task.completed ? date || today : task.dueDate // NOWE: ustaw due date dla flexible przy zakończeniu
+            };
+            setTasks(tasks.map(t => (t.id === taskId ? updatedTask : t)));
+
+            if (!wasCompleted) {
+                awardXP(task.xpReward, task);
+            }
+        }
+    }
+
+    function awardXP(xp: number, task: Task) {
+        let newChar = { ...character };
+        newChar.xp += xp;
+        newChar.totalXp += xp;
+
+        while (newChar.xp >= calculateXpForLevel(newChar.level)) {
+            newChar.xp -= calculateXpForLevel(newChar.level);
+            newChar.level++;
+            newChar.unspentPoints++;
+        }
+
+        if (task.classId) {
+            const taskClass = taskClasses.find(c => c.id === task.classId);
+            if (taskClass) {
+                const statKey = taskClass.statType;
+                const progressKey = `${statKey}Progress` as keyof Character;
+                const currentProgress = newChar[progressKey] as number;
+                const currentStatValue = newChar[statKey] as number;
+
+                let updatedProgress = currentProgress + 1;
+                let updatedStatValue = currentStatValue;
+
+                if (updatedProgress >= currentStatValue + 1) {
+                    updatedProgress = 0;
+                    updatedStatValue++;
+                }
+
+                newChar = {
+                    ...newChar,
+                    [statKey]: updatedStatValue,
+                    [progressKey]: updatedProgress,
+                };
+            }
+        }
+
+        if (task.skillId) {
+            const skill = skills.find(s => s.id === task.skillId);
+            if (skill) {
+                let updatedProgress = skill.progress + 1;
+                let updatedLevel = skill.level;
+
+                if (updatedProgress >= skill.level + 1) {
+                    updatedProgress = 0;
+                    updatedLevel++;
+                }
+
+                setSkills(skills.map(s => s.id === task.skillId ? { ...s, level: updatedLevel, progress: updatedProgress } : s));
+            }
+        }
+
+        setCharacter(newChar);
     }
 
     function addProject() {
         if (!newProjectName.trim()) return;
-        const colors = ["#8b5cf6", "#ec4899", "#f59e0b", "#10b981", "#3b82f6", "#ef4444"];
-        const color = colors[Math.floor(Math.random() * colors.length)];
+        const randomColor = `hsl(${Math.random() * 360}, 70%, 60%)`;
         const newProject: Project = {
             id: Date.now().toString(),
             name: newProjectName,
-            color,
+            color: randomColor,
             description: newProjectDesc,
         };
         setProjects([...projects, newProject]);
@@ -545,112 +455,59 @@ export default function App() {
         setNewProjectDesc("");
     }
 
-    function deleteProject(id: string) {
-        setProjects(projects.filter((p) => p.id !== id));
-        setTasks(tasks.map((t) => (t.projectId === id ? { ...t, projectId: null } : t)));
+    function deleteProject(projectId: string) {
+        setProjects(projects.filter(p => p.id !== projectId));
+        setTasks(tasks.map(t => (t.projectId === projectId ? { ...t, projectId: null } : t)));
     }
 
     function addTaskClass() {
         if (!newClassName.trim()) return;
-        const colors = ["#8b5cf6", "#ec4899", "#f59e0b", "#10b981", "#3b82f6", "#ef4444"];
-        const color = colors[Math.floor(Math.random() * colors.length)];
+        const randomColor = `hsl(${Math.random() * 360}, 70%, 60%)`;
         const newClass: TaskClass = {
             id: Date.now().toString(),
             name: newClassName,
             statType: newClassStat,
-            color,
+            color: randomColor,
         };
         setTaskClasses([...taskClasses, newClass]);
         setNewClassName("");
     }
 
-    function deleteTaskClass(id: string) {
-        setTaskClasses(taskClasses.filter((c) => c.id !== id));
-        setTasks(tasks.map((t) => (t.classId === id ? { ...t, classId: null, statType: null } : t)));
+    function deleteTaskClass(classId: string) {
+        setTaskClasses(taskClasses.filter(c => c.id !== classId));
+        setTasks(tasks.map(t => (t.classId === classId ? { ...t, classId: null } : t)));
     }
 
     function addSkill() {
         if (!newSkillName.trim()) return;
-        const colors = ["#8b5cf6", "#ec4899", "#f59e0b", "#10b981", "#3b82f6", "#ef4444"];
-        const color = colors[Math.floor(Math.random() * colors.length)];
+        const randomColor = `hsl(${Math.random() * 360}, 70%, 60%)`;
         const newSkill: Skill = {
             id: Date.now().toString(),
             name: newSkillName,
             level: 1,
             progress: 0,
-            color,
+            color: randomColor,
         };
         setSkills([...skills, newSkill]);
         setNewSkillName("");
     }
 
-    function deleteSkill(id: string) {
-        setSkills(skills.filter((s) => s.id !== id));
-        setTasks(tasks.map((t) => (t.skillId === id ? { ...t, skillId: null } : t)));
-    }
-
-    function increaseStrength() {
-        if (character.unspentPoints > 0) {
-            setCharacter({
-                ...character,
-                strength: character.strength + 1,
-                strengthProgress: 0,
-                unspentPoints: character.unspentPoints - 1
-            });
-        }
-    }
-
-    function increaseEndurance() {
-        if (character.unspentPoints > 0) {
-            setCharacter({
-                ...character,
-                endurance: character.endurance + 1,
-                enduranceProgress: 0,
-                unspentPoints: character.unspentPoints - 1
-            });
-        }
-    }
-
-    function increaseIntelligence() {
-        if (character.unspentPoints > 0) {
-            setCharacter({
-                ...character,
-                intelligence: character.intelligence + 1,
-                intelligenceProgress: 0,
-                unspentPoints: character.unspentPoints - 1
-            });
-        }
-    }
-
-    function increaseAgility() {
-        if (character.unspentPoints > 0) {
-            setCharacter({
-                ...character,
-                agility: character.agility + 1,
-                agilityProgress: 0,
-                unspentPoints: character.unspentPoints - 1
-            });
-        }
-    }
-
-    function increaseCharisma() {
-        if (character.unspentPoints > 0) {
-            setCharacter({
-                ...character,
-                charisma: character.charisma + 1,
-                charismaProgress: 0,
-                unspentPoints: character.unspentPoints - 1
-            });
-        }
+    function deleteSkill(skillId: string) {
+        setSkills(skills.filter(s => s.id !== skillId));
+        setTasks(tasks.map(t => (t.skillId === skillId ? { ...t, skillId: null } : t)));
     }
 
     function resetProgress() {
+        setTasks([]);
+        setProjects([]);
+        setTaskClasses([]);
+        setSkills([]);
         setCharacter({
-            name: "Hero",
+            name: "Adventurer",
             level: 1,
             xp: 0,
             totalXp: 0,
-            avatar: AVATARS[0],
+            avatar: "⚔️",
             strength: 1,
             strengthProgress: 0,
             endurance: 1,
@@ -663,362 +520,321 @@ export default function App() {
             charismaProgress: 0,
             unspentPoints: 0,
         });
-        setTasks([]);
-        setProjects([]);
-        setCompletions([]);
-        setTaskClasses([]);
-        setSkills([]);
+        setRecurringCompletions([]);
         setShowResetConfirm(false);
     }
 
-    function previousDay() {
-        const d = new Date(selectedDate);
-        d.setDate(d.getDate() - 1);
-        setSelectedDate(d.toISOString().slice(0, 10));
+    function getTasksForDate(date: string) {
+        return tasks.filter(t => {
+            if (t.isRecurring) {
+                if (t.recurringType === "daily") return true;
+                if (t.recurringType === "weekly") {
+                    const taskDay = new Date(t.dueDate).getDay();
+                    const targetDay = new Date(date).getDay();
+                    return taskDay === targetDay;
+                }
+                if (t.recurringType === "monthly") {
+                    const taskDate = new Date(t.dueDate).getDate();
+                    const targetDate = new Date(date).getDate();
+                    return taskDate === targetDate;
+                }
+            }
+            return t.dueDate === date;
+        });
     }
 
-    function nextDay() {
-        const d = new Date(selectedDate);
-        d.setDate(d.getDate() + 1);
-        setSelectedDate(d.toISOString().slice(0, 10));
-    }
-
-    function previousWeek() {
-        const d = new Date(selectedDate);
-        d.setDate(d.getDate() - 7);
-        setSelectedDate(d.toISOString().slice(0, 10));
-    }
-
-    function nextWeek() {
-        const d = new Date(selectedDate);
-        d.setDate(d.getDate() + 7);
-        setSelectedDate(d.toISOString().slice(0, 10));
-    }
-
-    function previousMonth() {
-        const d = new Date(selectedDate);
-        const m = d.getMonth();
-        d.setMonth(m - 1); // POPRAWIONE: było m - 2
-        setSelectedDate(d.toISOString().slice(0, 10));
-    }
-
-    function nextMonth() {
-        const d = new Date(selectedDate);
-        const m = d.getMonth();
-        d.setMonth(m + 1); // POPRAWIONE: było m - 2
-        setSelectedDate(d.toISOString().slice(0, 10));
+    function isTaskCompletedOnDate(task: Task, date: string): boolean {
+        if (task.isRecurring) {
+            const completion = recurringCompletions.find(rc => rc.taskId === task.id && rc.date === date);
+            return completion?.completed || false;
+        }
+        return task.completed;
     }
 
     const weekDates = getWeekDates(selectedDate);
-    const monthDates = getMonthDates(selectedDate);
+    const monthDates = getMonthDates(selectedMonth);
 
-    const allTasks = tasks.filter((t) => !t.completed);
-    const completedTasks = tasks.filter((t) => t.completed);
+    const dailyTasks = getTasksForDate(selectedDate);
+    const weeklyTasks = weekDates.flatMap(date => getTasksForDate(date).map(task => ({ task, date })));
+
+    const sortedTasks = [...tasks].sort((a, b) => {
+        if (a.completed !== b.completed) return a.completed ? 1 : -1;
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    });
+
+    const activeTasks = getActiveTasks(); // NOWE
 
     const xpForNextLevel = calculateXpForLevel(character.level);
+    const xpPercent = (character.xp / xpForNextLevel) * 100;
 
     return (
-        <div className="min-h-screen bg-slate-900 text-slate-100">
-            <div className="max-w-full mx-auto p-2 sm:p-4 lg:p-6">
-                <header className="mb-8 bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl shadow-lg p-6 border border-slate-700">
-                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-slate-100 p-2 sm:p-4">
+            <div className="max-w-7xl mx-auto">
+                {/* Top Bar */}
+                <div className="bg-slate-800 rounded-xl shadow-xl p-4 sm:p-6 mb-4 border border-slate-700">
+                    <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
                         <div className="flex items-center gap-4">
                             <div className="text-5xl">{character.avatar}</div>
                             <div>
-                                <h1 className="text-3xl font-bold text-indigo-400">{character.name}</h1>
-                                <p className="text-slate-300">Level {character.level} Adventurer</p>
+                                <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">
+                                    {character.name}
+                                </h1>
+                                <p className="text-slate-400 text-sm">Level {character.level} Adventurer</p>
                             </div>
                         </div>
-
-                        <div className="flex flex-col gap-3">
-                            <div className="flex items-center gap-3">
-                                <span className="text-sm text-slate-300">XP</span>
-                                <div className="w-48">
-                                    <ProgressBar value={character.xp} max={xpForNextLevel} />
-                                </div>
-                                <span className="text-xs text-slate-400">
-                                    {character.xp}/{xpForNextLevel}
+                        <div className="w-full sm:w-64">
+                            <div className="flex justify-between text-sm mb-1">
+                                <span className="text-slate-400">XP</span>
+                                <span className="text-indigo-400 font-semibold">
+                                    {character.xp} / {xpForNextLevel}
                                 </span>
                             </div>
-
-                            <div className="flex gap-4 text-sm flex-wrap">
-                                <div className="flex items-center gap-2">
-                                    <span className="text-rose-400">💪</span>
-                                    <span className="text-slate-300">STR: {character.strength}</span>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                    <span className="text-orange-400">❤️</span>
-                                    <span className="text-slate-300">END: {character.endurance}</span>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                    <span className="text-blue-400">🧠</span>
-                                    <span className="text-slate-300">INT: {character.intelligence}</span>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                    <span className="text-emerald-400">⚡</span>
-                                    <span className="text-slate-300">AGI: {character.agility}</span>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                    <span className="text-purple-400">✨</span>
-                                    <span className="text-slate-300">CHA: {character.charisma}</span>
-                                </div>
-                                {character.unspentPoints > 0 && (
-                                    <span className="text-yellow-400 font-semibold">
-                                        ⭐ {character.unspentPoints} points
-                                    </span>
-                                )}
-                            </div>
+                            <ProgressBar value={character.xp} max={xpForNextLevel} />
                         </div>
                     </div>
-                </header>
+                </div>
 
-                <nav className="mb-6 flex flex-wrap gap-2 justify-center">
-                    {(["settings", "daily", "weekly", "monthly", "projects", "all"] as const).map((v) => (
-                        <button
-                            key={v}
-                            onClick={() => setView(v)}
-                            className={`px-6 py-3 rounded-lg font-medium transition ${view === v
+                {/* Navigation */}
+                <div className="bg-slate-800 rounded-xl shadow-xl p-2 mb-4 border border-slate-700 overflow-x-auto">
+                    <div className="flex gap-2 min-w-max">
+                        {[
+                            { id: "daily", label: "Daily", icon: "📅" },
+                            { id: "weekly", label: "Weekly", icon: "📊" },
+                            { id: "monthly", label: "Monthly", icon: "📆" },
+                            { id: "all", label: "All", icon: "📋" },
+                            { id: "projects", label: "Projects", icon: "🎯" },
+                            { id: "character", label: "Character", icon: "⚔️" },
+                            { id: "activeTasks", label: "Active Tasks", icon: "🔥" }, // NOWE
+                            { id: "settings", label: "Settings", icon: "⚙️" },
+                        ].map(item => (
+                            <button
+                                key={item.id}
+                                onClick={() => setView(item.id as any)}
+                                className={`px-4 py-3 rounded-lg font-medium transition-all ${view === item.id
                                     ? "bg-indigo-600 text-white shadow-lg"
-                                    : "bg-slate-800 text-slate-300 hover:bg-slate-700 border border-slate-700"
-                                }`}
-                        >
-                            {v === "settings" ? "Character" : v.charAt(0).toUpperCase() + v.slice(1)}
-                        </button>
-                    ))}
-                </nav>
+                                    : "bg-slate-900 text-slate-300 hover:bg-slate-700"
+                                    }`}
+                            >
+                                <span className="mr-2">{item.icon}</span>
+                                {item.label}
+                            </button>
+                        ))}
+                    </div>
+                </div>
 
+                {/* Daily View */}
                 {view === "daily" && (
                     <div className="bg-slate-800 rounded-xl shadow p-4 sm:p-6 border border-slate-700 max-w-7xl mx-auto">
-                        <div className="flex items-center justify-between mb-6">
-                            <button
-                                onClick={previousDay}
-                                className="bg-slate-900 text-slate-300 px-4 py-2 rounded-lg hover:bg-slate-700 border border-slate-700"
-                            >
-                                ◀ Previous
-                            </button>
-                            <h2 className="text-2xl font-semibold">{selectedDate}</h2>
-                            <button
-                                onClick={nextDay}
-                                className="bg-slate-900 text-slate-300 px-4 py-2 rounded-lg hover:bg-slate-700 border border-slate-700"
-                            >
-                                Next ▶
-                            </button>
+                        <div className="flex justify-between items-center mb-6">
+                            <h2 className="text-2xl font-semibold">Daily Quests</h2>
+                            <div className="flex items-center gap-3">
+                                <input
+                                    type="date"
+                                    value={selectedDate}
+                                    onChange={(e) => setSelectedDate(e.target.value)}
+                                    className="px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-slate-100"
+                                />
+                                <button
+                                    onClick={() => openTaskModal(selectedDate)}
+                                    className="bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700 transition"
+                                >
+                                    + Add Quest
+                                </button>
+                            </div>
                         </div>
 
-                        <button
-                            onClick={() => openTaskModal()}
-                            className="mb-6 w-full bg-indigo-600 text-white px-6 py-3 rounded-lg hover:bg-indigo-700"
-                        >
-                            + Add Quest
-                        </button>
-
                         <div className="space-y-3">
-                            {getTasksForDate(selectedDate).map((task) => {
-                                const isCompleted = isTaskCompleted(task, selectedDate);
-                                const project = projects.find((p) => p.id === task.projectId);
-                                const taskClassObj = taskClasses.find((c) => c.id === task.classId);
-                                const taskSkillObj = skills.find((s) => s.id === task.skillId);
-                                return (
-                                    <div
-                                        key={task.id}
-                                        className={`p-4 rounded-lg border transition ${isCompleted
-                                                ? "bg-slate-900 border-slate-700 opacity-60"
-                                                : "bg-slate-900 border-slate-700 hover:border-indigo-500"
-                                            }`}
-                                    >
-                                        <div className="flex items-start gap-3">
-                                            <input
-                                                type="checkbox"
-                                                checked={isCompleted}
-                                                onChange={() =>
-                                                    isCompleted
-                                                        ? uncompleteTask(task, selectedDate)
-                                                        : completeTask(task, selectedDate)
-                                                }
-                                                className="mt-1 w-5 h-5 cursor-pointer"
-                                            />
-                                            <div className="flex-1">
-                                                <div className="flex items-center gap-2 mb-1">
-                                                    <h3
-                                                        className={`font-semibold ${isCompleted ? "line-through text-slate-500" : ""
-                                                            }`}
-                                                    >
-                                                        {task.name}
-                                                    </h3>
-                                                    {project && (
-                                                        <span
-                                                            className="text-xs px-2 py-1 rounded"
-                                                            style={{ backgroundColor: project.color + "33", color: project.color }}
-                                                        >
-                                                            {project.name}
-                                                        </span>
-                                                    )}
-                                                    {taskClassObj && (
-                                                        <span
-                                                            className="text-xs px-2 py-1 rounded"
-                                                            style={{
-                                                                backgroundColor: taskClassObj.color + "33",
-                                                                color: taskClassObj.color,
-                                                            }}
-                                                        >
-                                                            {taskClassObj.name}
-                                                        </span>
-                                                    )}
-                                                    {taskSkillObj && (
-                                                        <span
-                                                            className="text-xs px-2 py-1 rounded"
-                                                            style={{
-                                                                backgroundColor: taskSkillObj.color + "33",
-                                                                color: taskSkillObj.color,
-                                                            }}
-                                                        >
-                                                            {taskSkillObj.name}
-                                                        </span>
-                                                    )}
+                            {dailyTasks.length === 0 ? (
+                                <div className="text-center py-12 text-slate-400">
+                                    <p className="text-lg mb-2">No quests for this day</p>
+                                    <p className="text-sm">Click "Add Quest" to create one!</p>
+                                </div>
+                            ) : (
+                                dailyTasks.map(task => {
+                                    const isCompleted = isTaskCompletedOnDate(task, selectedDate);
+                                    const project = task.projectId ? projects.find(p => p.id === task.projectId) : null;
+                                    const taskClass = task.classId ? taskClasses.find(c => c.id === task.classId) : null;
+                                    const skill = task.skillId ? skills.find(s => s.id === task.skillId) : null;
+
+                                    return (
+                                        <div
+                                            key={task.id}
+                                            className={`bg-slate-900 rounded-lg p-4 border border-slate-700 transition-all ${isCompleted ? "opacity-60" : ""
+                                                }`}
+                                        >
+                                            <div className="flex items-start gap-4">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={isCompleted}
+                                                    onChange={() => toggleTask(task.id, selectedDate)}
+                                                    className="mt-1 w-5 h-5 rounded border-slate-600 text-indigo-600 focus:ring-indigo-500"
+                                                />
+                                                <div className="flex-1">
+                                                    <div className="flex items-start justify-between">
+                                                        <div className="flex-1">
+                                                            <h3
+                                                                className={`text-lg font-semibold ${isCompleted ? "line-through text-slate-500" : ""
+                                                                    }`}
+                                                            >
+                                                                {task.name}
+                                                            </h3>
+                                                            {task.description && (
+                                                                <p className="text-sm text-slate-400 mt-1">{task.description}</p>
+                                                            )}
+                                                            <div className="flex flex-wrap gap-2 mt-3">
+                                                                <span className="text-xs px-3 py-1 rounded-full bg-indigo-900 text-indigo-300 border border-indigo-700">
+                                                                    {task.xpReward} XP
+                                                                </span>
+                                                                {task.priority && (
+                                                                    <span
+                                                                        className={`text-xs px-3 py-1 rounded-full ${task.priority === "high"
+                                                                            ? "bg-rose-900 text-rose-300 border border-rose-700"
+                                                                            : task.priority === "medium"
+                                                                                ? "bg-amber-900 text-amber-300 border border-amber-700"
+                                                                                : "bg-slate-700 text-slate-300 border border-slate-600"
+                                                                            }`}
+                                                                    >
+                                                                        {task.priority}
+                                                                    </span>
+                                                                )}
+                                                                {project && (
+                                                                    <span
+                                                                        className="text-xs px-3 py-1 rounded-full border"
+                                                                        style={{
+                                                                            borderColor: project.color,
+                                                                            color: project.color,
+                                                                            backgroundColor: `${project.color}20`,
+                                                                        }}
+                                                                    >
+                                                                        {project.name}
+                                                                    </span>
+                                                                )}
+                                                                {taskClass && (
+                                                                    <span
+                                                                        className="text-xs px-3 py-1 rounded-full border"
+                                                                        style={{
+                                                                            borderColor: taskClass.color,
+                                                                            color: taskClass.color,
+                                                                            backgroundColor: `${taskClass.color}20`,
+                                                                        }}
+                                                                    >
+                                                                        {taskClass.name}
+                                                                    </span>
+                                                                )}
+                                                                {skill && (
+                                                                    <span
+                                                                        className="text-xs px-3 py-1 rounded-full border"
+                                                                        style={{
+                                                                            borderColor: skill.color,
+                                                                            color: skill.color,
+                                                                            backgroundColor: `${skill.color}20`,
+                                                                        }}
+                                                                    >
+                                                                        {skill.name}
+                                                                    </span>
+                                                                )}
+                                                                {task.isRecurring && (
+                                                                    <span className="text-xs px-3 py-1 rounded-full bg-purple-900 text-purple-300 border border-purple-700">
+                                                                        🔄 {task.recurringType}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                        <div className="flex gap-2 ml-4">
+                                                            <button
+                                                                onClick={() => openEditModal(task)}
+                                                                className="text-slate-400 hover:text-indigo-400 transition"
+                                                            >
+                                                                ✏️
+                                                            </button>
+                                                            <button
+                                                                onClick={() => deleteTask(task.id)}
+                                                                className="text-slate-400 hover:text-rose-400 transition"
+                                                            >
+                                                                🗑️
+                                                            </button>
+                                                        </div>
+                                                    </div>
                                                 </div>
-                                                {task.description && (
-                                                    <p className="text-sm text-slate-400 mb-2">{task.description}</p>
-                                                )}
-                                                <div className="flex items-center gap-4 text-xs text-slate-400">
-                                                    <span>+{task.xpReward} XP</span>
-                                                    <span
-                                                        className={`px-2 py-1 rounded ${task.priority === "high"
-                                                                ? "bg-rose-900 text-rose-300"
-                                                                : task.priority === "medium"
-                                                                    ? "bg-yellow-900 text-yellow-300"
-                                                                    : "bg-slate-700 text-slate-300"
-                                                            }`}
-                                                    >
-                                                        {task.priority}
-                                                    </span>
-                                                    {task.isRecurring && (
-                                                        <span className="px-2 py-1 rounded bg-indigo-900 text-indigo-300">
-                                                            🔄 {task.recurringType}
-                                                        </span>
-                                                    )}
-                                                </div>
-                                            </div>
-                                            <div className="flex gap-2">
-                                                <button
-                                                    onClick={() => editTask(task)}
-                                                    className="text-indigo-400 hover:text-indigo-300 text-sm"
-                                                >
-                                                    Edit
-                                                </button>
-                                                <button
-                                                    onClick={() => deleteTask(task.id)}
-                                                    className="text-rose-500 hover:text-rose-400 text-sm"
-                                                >
-                                                    Delete
-                                                </button>
                                             </div>
                                         </div>
-                                    </div>
-                                );
-                            })}
-                            {getTasksForDate(selectedDate).length === 0 && (
-                                <p className="text-center text-slate-400 py-8">
-                                    No quests today. Add one to start your adventure!
-                                </p>
+                                    );
+                                })
                             )}
                         </div>
                     </div>
                 )}
 
+                {/* Weekly View */}
                 {view === "weekly" && (
                     <div className="bg-slate-800 rounded-xl shadow p-4 sm:p-6 border border-slate-700 max-w-7xl mx-auto">
-                        <div className="flex items-center justify-between mb-6">
-                            <button
-                                onClick={previousWeek}
-                                className="bg-slate-900 text-slate-300 px-3 py-2 rounded-lg hover:bg-slate-700 border border-slate-700 text-sm"
-                            >
-                                ◀ Previous
-                            </button>
-                            <h2 className="text-xl sm:text-2xl font-semibold">Weekly View</h2>
-                            <button
-                                onClick={nextWeek}
-                                className="bg-slate-900 text-slate-300 px-3 py-2 rounded-lg hover:bg-slate-700 border border-slate-700 text-sm"
-                            >
-                                Next ▶
-                            </button>
+                        <div className="flex justify-between items-center mb-6">
+                            <h2 className="text-2xl font-semibold">Weekly Quests</h2>
+                            <div className="flex items-center gap-3">
+                                <input
+                                    type="date"
+                                    value={selectedDate}
+                                    onChange={(e) => setSelectedDate(e.target.value)}
+                                    className="px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-slate-100"
+                                />
+                            </div>
                         </div>
 
-                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-3">
-                            {weekDates.map((date) => {
-                                const isTodayDate = isToday(date);
+                        <div className="grid grid-cols-1 lg:grid-cols-7 gap-4">
+                            {weekDates.map(date => {
+                                const dayTasks = getTasksForDate(date);
+                                const completedCount = dayTasks.filter(t => isTaskCompletedOnDate(t, date)).length;
+                                const isToday = date === today;
+
                                 return (
                                     <div
                                         key={date}
-                                        className={`rounded-lg p-3 border transition-all ${isTodayDate
-                                                ? 'bg-indigo-900 border-indigo-500 shadow-lg shadow-indigo-500/20'
-                                                : 'bg-slate-900 border-slate-700'
+                                        className={`bg-slate-900 rounded-lg p-4 border ${isToday ? "border-indigo-500 ring-2 ring-indigo-500" : "border-slate-700"
                                             }`}
                                     >
-                                        <div className="flex items-center justify-between mb-3">
-                                            <div>
-                                                <h3 className={`font-semibold ${isTodayDate ? 'text-indigo-300' : 'text-indigo-400'}`}>
-                                                    {getDayName(date)}
-                                                </h3>
-                                                <p className="text-xs text-slate-400">{formatDateDayMonth(date)}</p>
-                                            </div>
-                                            <button
-                                                onClick={() => openTaskModal(date)}
-                                                className={`hover:scale-110 transition-transform text-lg leading-none w-6 h-6 flex items-center justify-center rounded ${isTodayDate
-                                                        ? 'text-indigo-300 hover:text-indigo-200'
-                                                        : 'text-indigo-400 hover:text-indigo-300'
-                                                    }`}
-                                                title="Add task"
-                                            >
-                                                +
-                                            </button>
+                                        <div className="text-center mb-3">
+                                            <p className="text-xs text-slate-400">{getDayName(date)}</p>
+                                            <p className={`text-lg font-semibold ${isToday ? "text-indigo-400" : ""}`}>
+                                                {formatShortDate(date)}
+                                            </p>
+                                            {dayTasks.length > 0 && (
+                                                <p className="text-xs text-slate-400 mt-1">
+                                                    {completedCount}/{dayTasks.length}
+                                                </p>
+                                            )}
                                         </div>
+
                                         <div className="space-y-2">
-                                            {getTasksForDate(date).map((task) => {
-                                                const isCompleted = isTaskCompleted(task, date);
-                                                const project = projects.find((p) => p.id === task.projectId);
+                                            {dayTasks.map(task => {
+                                                const isCompleted = isTaskCompletedOnDate(task, date);
                                                 return (
                                                     <div
                                                         key={task.id}
-                                                        className={`p-2 rounded text-xs border cursor-pointer transition-all ${isCompleted
-                                                                ? "bg-slate-800 border-slate-700 opacity-60"
-                                                                : "bg-slate-800 border-slate-700 hover:border-indigo-500 hover:bg-slate-750"
+                                                        className={`text-xs p-2 rounded border border-slate-700 ${isCompleted ? "bg-slate-800 opacity-60" : "bg-slate-900"
                                                             }`}
-                                                        onClick={() => editTask(task)}
                                                     >
                                                         <div className="flex items-start gap-2">
                                                             <input
                                                                 type="checkbox"
                                                                 checked={isCompleted}
-                                                                onChange={(e) => {
-                                                                    e.stopPropagation();
-                                                                    isCompleted
-                                                                        ? uncompleteTask(task, date)
-                                                                        : completeTask(task, date);
-                                                                }}
-                                                                onClick={(e) => e.stopPropagation()}
-                                                                className="mt-0.5 w-3 h-3 cursor-pointer"
+                                                                onChange={() => toggleTask(task.id, date)}
+                                                                className="mt-0.5 w-3 h-3 rounded border-slate-600"
                                                             />
-                                                            <div className="flex-1 min-w-0">
-                                                                <div
-                                                                    className={`font-medium truncate ${isCompleted ? "line-through text-slate-500" : ""
-                                                                        }`}
-                                                                >
-                                                                    {task.name}
-                                                                </div>
-                                                                {project && (
-                                                                    <div
-                                                                        className="text-xs mt-1 truncate"
-                                                                        style={{ color: project.color }}
-                                                                    >
-                                                                        {project.name}
-                                                                    </div>
-                                                                )}
-                                                            </div>
+                                                            <span className={isCompleted ? "line-through text-slate-500" : ""}>
+                                                                {task.name}
+                                                            </span>
                                                         </div>
                                                     </div>
                                                 );
                                             })}
                                         </div>
+
+                                        <button
+                                            onClick={() => openTaskModal(date)}
+                                            className="w-full mt-3 text-xs py-2 bg-slate-800 hover:bg-slate-700 rounded border border-slate-700"
+                                        >
+                                            + Add
+                                        </button>
                                     </div>
                                 );
                             })}
@@ -1026,87 +842,67 @@ export default function App() {
                     </div>
                 )}
 
+                {/* Monthly View */}
                 {view === "monthly" && (
                     <div className="bg-slate-800 rounded-xl shadow p-4 sm:p-6 border border-slate-700 max-w-7xl mx-auto">
-                        <div className="flex items-center justify-between mb-6">
-                            <button
-                                onClick={previousMonth}
-                                className="bg-slate-900 text-slate-300 px-3 py-2 rounded-lg hover:bg-slate-700 border border-slate-700 text-sm"
-                            >
-                                ◀ Previous
-                            </button>
-                            <h2 className="text-lg sm:text-2xl font-semibold">
-                                {new Date(selectedDate).toLocaleDateString("en-US", {
-                                    year: "numeric",
-                                    month: "long",
-                                })}
-                            </h2>
-                            <button
-                                onClick={nextMonth}
-                                className="bg-slate-900 text-slate-300 px-3 py-2 rounded-lg hover:bg-slate-700 border border-slate-700 text-sm"
-                            >
-                                Next ▶
-                            </button>
+                        <div className="flex justify-between items-center mb-6">
+                            <h2 className="text-2xl font-semibold">Monthly Quests</h2>
+                            <input
+                                type="month"
+                                value={selectedMonth}
+                                onChange={(e) => setSelectedMonth(e.target.value)}
+                                className="px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-slate-100"
+                            />
                         </div>
 
-                        <div className="grid grid-cols-7 gap-1 sm:gap-2">
-                            {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((day) => (
-                                <div key={day} className="text-center text-slate-400 text-xs sm:text-sm font-semibold py-2">
-                                    {day}
-                                </div>
-                            ))}
+                        <div className="mb-4">
+                            <div className="grid grid-cols-7 gap-2 text-center text-sm font-semibold text-slate-400 mb-2">
+                                {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map(day => (
+                                    <div key={day}>{day}</div>
+                                ))}
+                            </div>
+                        </div>
 
+                        <div className="grid grid-cols-7 gap-2">
                             {monthDates.map((date, idx) => {
-                                if (!date) {
-                                    return <div key={idx} className="bg-slate-900 rounded-lg p-2 border border-slate-700" />;
-                                }
+                                if (!date)
+                                    return <div key={`empty-${idx}`} className="aspect-square bg-slate-900 rounded-lg" />;
+
                                 const dayTasks = getTasksForDate(date);
-                                const dayNum = new Date(date).getDate();
-                                const isTodayDate = isToday(date);
+                                const completedCount = dayTasks.filter(t => isTaskCompletedOnDate(t, date)).length;
+                                const isToday = date === today;
+
                                 return (
                                     <div
                                         key={date}
-                                        className={`rounded-lg p-2 border min-h-20 transition-all ${isTodayDate
-                                                ? 'bg-indigo-900 border-indigo-500 shadow-lg shadow-indigo-500/20'
-                                                : 'bg-slate-900 border-slate-700'
+                                        className={`aspect-square bg-slate-900 rounded-lg p-2 border flex flex-col ${isToday ? "border-indigo-500 ring-2 ring-indigo-500" : "border-slate-700"
                                             }`}
                                     >
-                                        <div className="flex items-center justify-between mb-1">
-                                            <div className={`text-xs sm:text-sm font-semibold ${isTodayDate ? 'text-indigo-300' : 'text-slate-300'
-                                                }`}>
-                                                {dayNum}
-                                            </div>
-                                            <button
-                                                onClick={() => openTaskModal(date)}
-                                                className={`hover:scale-110 transition-transform text-sm leading-none w-5 h-5 flex items-center justify-center rounded ${isTodayDate
-                                                        ? 'text-indigo-300 hover:text-indigo-200'
-                                                        : 'text-indigo-400 hover:text-indigo-300'
-                                                    }`}
-                                                title="Add task"
-                                            >
-                                                +
-                                            </button>
+                                        <div className={`text-sm font-semibold mb-1 ${isToday ? "text-indigo-400" : ""}`}>
+                                            {date.split("-")[2]}
                                         </div>
-                                        <div className="space-y-1">
-                                            {dayTasks.slice(0, 3).map((task) => {
-                                                const isCompleted = isTaskCompleted(task, date);
+                                        <div className="flex-1 space-y-1 overflow-y-auto">
+                                            {dayTasks.slice(0, 2).map(task => {
+                                                const isCompleted = isTaskCompletedOnDate(task, date);
                                                 return (
                                                     <div
                                                         key={task.id}
-                                                        onClick={() => editTask(task)}
-                                                        className={`text-xs px-1 py-1 rounded truncate cursor-pointer transition-all ${isCompleted
-                                                                ? "bg-slate-800 text-slate-500 line-through"
-                                                                : "bg-indigo-900 text-indigo-300 hover:bg-indigo-800"
+                                                        className={`text-xs truncate ${isCompleted ? "line-through text-slate-500" : "text-slate-300"
                                                             }`}
                                                     >
                                                         {task.name}
                                                     </div>
                                                 );
                                             })}
-                                            {dayTasks.length > 3 && (
-                                                <div className="text-xs text-slate-400">+{dayTasks.length - 3} more</div>
+                                            {dayTasks.length > 2 && (
+                                                <div className="text-xs text-slate-500">+{dayTasks.length - 2}</div>
                                             )}
                                         </div>
+                                        {dayTasks.length > 0 && (
+                                            <div className="text-xs text-slate-400 mt-1">
+                                                {completedCount}/{dayTasks.length}
+                                            </div>
+                                        )}
                                     </div>
                                 );
                             })}
@@ -1114,514 +910,556 @@ export default function App() {
                     </div>
                 )}
 
+                {/* All Tasks View */}
                 {view === "all" && (
                     <div className="bg-slate-800 rounded-xl shadow p-4 sm:p-6 border border-slate-700 max-w-7xl mx-auto">
-                        <div className="flex items-center justify-between mb-6">
+                        <div className="flex justify-between items-center mb-6">
                             <h2 className="text-2xl font-semibold">All Quests</h2>
                             <button
                                 onClick={() => openTaskModal()}
-                                className="bg-indigo-600 text-white px-6 py-3 rounded-lg hover:bg-indigo-700"
+                                className="bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700 transition"
                             >
                                 + Add Quest
                             </button>
                         </div>
 
-                        <div className="mb-8">
-                            <h3 className="text-xl font-semibold mb-4 text-indigo-400">Active Quests</h3>
-                            <div className="space-y-3">
-                                {allTasks.map((task) => {
-                                    const project = projects.find((p) => p.id === task.projectId);
-                                    const taskClassObj = taskClasses.find((c) => c.id === task.classId);
-                                    const taskSkillObj = skills.find((s) => s.id === task.skillId);
+                        <div className="space-y-3">
+                            {sortedTasks.length === 0 ? (
+                                <div className="text-center py-12 text-slate-400">
+                                    <p className="text-lg mb-2">No quests yet</p>
+                                    <p className="text-sm">Start your adventure by creating your first quest!</p>
+                                </div>
+                            ) : (
+                                sortedTasks.map(task => {
+                                    const project = task.projectId ? projects.find(p => p.id === task.projectId) : null;
+                                    const taskClass = task.classId ? taskClasses.find(c => c.id === task.classId) : null;
+                                    const skill = task.skillId ? skills.find(s => s.id === task.skillId) : null;
+
                                     return (
                                         <div
                                             key={task.id}
-                                            className="p-4 rounded-lg border bg-slate-900 border-slate-700 hover:border-indigo-500 transition"
+                                            className={`bg-slate-900 rounded-lg p-4 border border-slate-700 transition-all ${task.completed ? "opacity-60 cursor-pointer hover:opacity-80" : ""
+                                                }`}
+                                            onClick={() => task.completed && openCompletedTaskView(task)} // NOWE: kliknięcie na ukończone zadanie
                                         >
-                                            <div className="flex items-start gap-3">
-                                                <div className="flex-1">
-                                                    <div className="flex items-center gap-2 mb-1">
-                                                        <h3 className="font-semibold">{task.name}</h3>
-                                                        {project && (
-                                                            <span
-                                                                className="text-xs px-2 py-1 rounded"
-                                                                style={{
-                                                                    backgroundColor: project.color + "33",
-                                                                    color: project.color,
-                                                                }}
-                                                            >
-                                                                {project.name}
-                                                            </span>
-                                                        )}
-                                                        {taskClassObj && (
-                                                            <span
-                                                                className="text-xs px-2 py-1 rounded"
-                                                                style={{
-                                                                    backgroundColor: taskClassObj.color + "33",
-                                                                    color: taskClassObj.color,
-                                                                }}
-                                                            >
-                                                                {taskClassObj.name}
-                                                            </span>
-                                                        )}
-                                                        {taskSkillObj && (
-                                                            <span
-                                                                className="text-xs px-2 py-1 rounded"
-                                                                style={{
-                                                                    backgroundColor: taskSkillObj.color + "33",
-                                                                    color: taskSkillObj.color,
-                                                                }}
-                                                            >
-                                                                {taskSkillObj.name}
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                    {task.description && (
-                                                        <p className="text-sm text-slate-400 mb-2">{task.description}</p>
-                                                    )}
-                                                    <div className="flex items-center gap-4 text-xs text-slate-400">
-                                                        <span>Due: {task.dueDate}</span>
-                                                        <span>+{task.xpReward} XP</span>
-                                                        <span
-                                                            className={`px-2 py-1 rounded ${task.priority === "high"
-                                                                    ? "bg-rose-900 text-rose-300"
-                                                                    : task.priority === "medium"
-                                                                        ? "bg-yellow-900 text-yellow-300"
-                                                                        : "bg-slate-700 text-slate-300"
-                                                                }`}
-                                                        >
-                                                            {task.priority}
-                                                        </span>
-                                                        {task.isRecurring && (
-                                                            <span className="px-2 py-1 rounded bg-indigo-900 text-indigo-300">
-                                                                🔄 {task.recurringType}
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                                <div className="flex gap-2">
-                                                    <button
-                                                        onClick={() => editTask(task)}
-                                                        className="text-indigo-400 hover:text-indigo-300 text-sm"
-                                                    >
-                                                        Edit
-                                                    </button>
-                                                    <button
-                                                        onClick={() => deleteTask(task.id)}
-                                                        className="text-rose-500 hover:text-rose-400 text-sm"
-                                                    >
-                                                        Delete
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    );
-                                })}
-                                {allTasks.length === 0 && (
-                                    <p className="text-center text-slate-400 py-8">
-                                        No active quests. Create one to begin your journey!
-                                    </p>
-                                )}
-                            </div>
-                        </div>
-
-                        <div>
-                            <h3 className="text-xl font-semibold mb-4 text-slate-400">Completed Quests</h3>
-                            <div className="space-y-2">
-                                {completedTasks.map((task) => {
-                                    const project = projects.find((p) => p.id === task.projectId);
-                                    return (
-                                        <div
-                                            key={task.id}
-                                            className="p-3 rounded-lg bg-slate-900 border border-slate-700 opacity-60"
-                                        >
-                                            <div className="flex items-center gap-2">
-                                                <span className="text-indigo-400">✓</span>
-                                                <span className="line-through text-slate-500">{task.name}</span>
-                                                {project && (
-                                                    <span className="text-xs text-slate-500">{project.name}</span>
-                                                )}
-                                            </div>
-                                        </div>
-                                    );
-                                })}
-                                {completedTasks.length === 0 && (
-                                    <p className="text-center text-slate-400 py-4">No completed quests yet.</p>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-                )}
-
-                {showTaskModal && (
-                    <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 p-4">
-                        <div className="bg-slate-800 rounded-xl p-6 max-w-2xl w-full border border-slate-700 max-h-[90vh] overflow-y-auto">
-                            <h3 className="text-2xl font-semibold mb-4">
-                                {editingTask ? "Edit Quest" : "Create New Quest"}
-                            </h3>
-
-                            <div className="space-y-4">
-                                <input
-                                    type="text"
-                                    placeholder="Quest name"
-                                    value={taskName}
-                                    onChange={(e) => setTaskName(e.target.value)}
-                                    className="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-lg text-slate-100"
-                                />
-
-                                <textarea
-                                    placeholder="Description (optional)"
-                                    value={taskDesc}
-                                    onChange={(e) => setTaskDesc(e.target.value)}
-                                    className="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-lg text-slate-100 resize-none"
-                                    rows={3}
-                                />
-
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="block text-sm text-slate-300 mb-1">Project</label>
-                                        <select
-                                            value={taskProject || ""}
-                                            onChange={(e) => setTaskProject(e.target.value || null)}
-                                            className="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-lg text-slate-100"
-                                        >
-                                            <option value="">No Project</option>
-                                            {projects.map((p) => (
-                                                <option key={p.id} value={p.id}>
-                                                    {p.name}
-                                                </option>
-                                            ))}
-                                        </select>
-                                    </div>
-
-                                    <div>
-                                        <label className="block text-sm text-slate-300 mb-1">Priority</label>
-                                        <select
-                                            value={taskPriority}
-                                            onChange={(e) =>
-                                                setTaskPriority(e.target.value as "low" | "medium" | "high")
-                                            }
-                                            className="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-lg text-slate-100"
-                                        >
-                                            <option value="low">Low</option>
-                                            <option value="medium">Medium</option>
-                                            <option value="high">High</option>
-                                        </select>
-                                    </div>
-                                </div>
-
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="block text-sm text-slate-300 mb-1">XP Reward</label>
-                                        <input
-                                            type="number"
-                                            value={taskXp}
-                                            onChange={(e) => setTaskXp(Number(e.target.value))}
-                                            className="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-lg text-slate-100"
-                                        />
-                                    </div>
-
-                                    <div>
-                                        <label className="block text-sm text-slate-300 mb-1">Due Date</label>
-                                        <input
-                                            type="date"
-                                            value={taskDueDate}
-                                            onChange={(e) => setTaskDueDate(e.target.value)}
-                                            className="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-lg text-slate-100"
-                                        />
-                                    </div>
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm text-slate-300 mb-1">Task Class</label>
-                                    <select
-                                        value={taskClass || ""}
-                                        onChange={(e) => setTaskClass(e.target.value || null)}
-                                        className="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-lg text-slate-100"
-                                    >
-                                        <option value="">No Class</option>
-                                        {taskClasses.map((c) => (
-                                            <option key={c.id} value={c.id}>
-                                                {c.name} ({c.statType})
-                                            </option>
-                                        ))}
-                                    </select>
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm text-slate-300 mb-1">Skill</label>
-                                    <select
-                                        value={taskSkill || ""}
-                                        onChange={(e) => setTaskSkill(e.target.value || null)}
-                                        className="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-lg text-slate-100"
-                                    >
-                                        <option value="">No Skill</option>
-                                        {skills.map((s) => (
-                                            <option key={s.id} value={s.id}>
-                                                {s.name} (Lvl {s.level})
-                                            </option>
-                                        ))}
-                                    </select>
-                                </div>
-
-                                <div className="flex items-center gap-2">
-                                    <input
-                                        type="checkbox"
-                                        id="recurring"
-                                        checked={taskRecurring}
-                                        onChange={(e) => setTaskRecurring(e.target.checked)}
-                                        className="w-5 h-5 cursor-pointer"
-                                    />
-                                    <label htmlFor="recurring" className="text-slate-300">
-                                        Recurring Quest
-                                    </label>
-                                </div>
-
-                                {taskRecurring && (
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div>
-                                            <label className="block text-sm text-slate-300 mb-1">Frequency</label>
-                                            <select
-                                                value={taskRecurringType}
-                                                onChange={(e) =>
-                                                    setTaskRecurringType(
-                                                        e.target.value as "daily" | "weekly" | "monthly"
-                                                    )
-                                                }
-                                                className="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-lg text-slate-100"
-                                            >
-                                                <option value="daily">Daily</option>
-                                                <option value="weekly">Weekly</option>
-                                                <option value="monthly">Monthly</option>
-                                            </select>
-                                        </div>
-
-                                        {taskRecurringType !== "daily" && (
-                                            <div>
-                                                <label className="block text-sm text-slate-300 mb-1">
-                                                    {taskRecurringType === "weekly" ? "Day of Week" : "Day of Month"}
-                                                </label>
+                                            <div className="flex items-start gap-4">
                                                 <input
-                                                    type="number"
-                                                    min={taskRecurringType === "weekly" ? 0 : 1}
-                                                    max={taskRecurringType === "weekly" ? 6 : 31}
-                                                    value={taskRecurringDay}
-                                                    onChange={(e) => setTaskRecurringDay(Number(e.target.value))}
-                                                    className="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-lg text-slate-100"
+                                                    type="checkbox"
+                                                    checked={task.completed}
+                                                    onChange={(e) => {
+                                                        e.stopPropagation();
+                                                        toggleTask(task.id);
+                                                    }}
+                                                    className="mt-1 w-5 h-5 rounded border-slate-600 text-indigo-600 focus:ring-indigo-500"
                                                 />
+                                                <div className="flex-1">
+                                                    <div className="flex items-start justify-between">
+                                                        <div className="flex-1">
+                                                            <h3
+                                                                className={`text-lg font-semibold ${task.completed ? "line-through text-slate-500" : ""
+                                                                    }`}
+                                                            >
+                                                                {task.name}
+                                                            </h3>
+                                                            {task.description && (
+                                                                <p className="text-sm text-slate-400 mt-1">{task.description}</p>
+                                                            )}
+                                                            <div className="flex flex-wrap gap-2 mt-3">
+                                                                <span className="text-xs px-3 py-1 rounded-full bg-indigo-900 text-indigo-300 border border-indigo-700">
+                                                                    {task.xpReward} XP
+                                                                </span>
+                                                                {task.priority && (
+                                                                    <span
+                                                                        className={`text-xs px-3 py-1 rounded-full ${task.priority === "high"
+                                                                            ? "bg-rose-900 text-rose-300 border border-rose-700"
+                                                                            : task.priority === "medium"
+                                                                                ? "bg-amber-900 text-amber-300 border border-amber-700"
+                                                                                : "bg-slate-700 text-slate-300 border border-slate-600"
+                                                                            }`}
+                                                                    >
+                                                                        {task.priority}
+                                                                    </span>
+                                                                )}
+                                                                {task.dueDate && (
+                                                                    <span className="text-xs px-3 py-1 rounded-full bg-slate-700 text-slate-300 border border-slate-600">
+                                                                        📅 {task.dueDate}
+                                                                    </span>
+                                                                )}
+                                                                {task.isFlexible && (
+                                                                    <span className="text-xs px-3 py-1 rounded-full bg-teal-900 text-teal-300 border border-teal-700">
+                                                                        🕐 Flexible
+                                                                    </span>
+                                                                )}
+                                                                {project && (
+                                                                    <span
+                                                                        className="text-xs px-3 py-1 rounded-full border"
+                                                                        style={{
+                                                                            borderColor: project.color,
+                                                                            color: project.color,
+                                                                            backgroundColor: `${project.color}20`,
+                                                                        }}
+                                                                    >
+                                                                        {project.name}
+                                                                    </span>
+                                                                )}
+                                                                {taskClass && (
+                                                                    <span
+                                                                        className="text-xs px-3 py-1 rounded-full border"
+                                                                        style={{
+                                                                            borderColor: taskClass.color,
+                                                                            color: taskClass.color,
+                                                                            backgroundColor: `${taskClass.color}20`,
+                                                                        }}
+                                                                    >
+                                                                        {taskClass.name}
+                                                                    </span>
+                                                                )}
+                                                                {skill && (
+                                                                    <span
+                                                                        className="text-xs px-3 py-1 rounded-full border"
+                                                                        style={{
+                                                                            borderColor: skill.color,
+                                                                            color: skill.color,
+                                                                            backgroundColor: `${skill.color}20`,
+                                                                        }}
+                                                                    >
+                                                                        {skill.name}
+                                                                    </span>
+                                                                )}
+                                                                {task.isRecurring && (
+                                                                    <span className="text-xs px-3 py-1 rounded-full bg-purple-900 text-purple-300 border border-purple-700">
+                                                                        🔄 {task.recurringType}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                        <div className="flex gap-2 ml-4">
+                                                            <button
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    openEditModal(task);
+                                                                }}
+                                                                className="text-slate-400 hover:text-indigo-400 transition"
+                                                            >
+                                                                ✏️
+                                                            </button>
+                                                            <button
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    deleteTask(task.id);
+                                                                }}
+                                                                className="text-slate-400 hover:text-rose-400 transition"
+                                                            >
+                                                                🗑️
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                </div>
                                             </div>
-                                        )}
-                                    </div>
+                                        </div>
+                                    );
+                                })
+                            )}
+                        </div>
+                    </div>
+                )}
+
+                {/* NOWE: Active Tasks View */}
+                {view === "activeTasks" && (
+                    <div className="bg-slate-800 rounded-xl shadow p-4 sm:p-6 border border-slate-700 max-w-7xl mx-auto">
+                        <div className="flex justify-between items-center mb-6">
+                            <div>
+                                <h2 className="text-2xl font-semibold">🔥 Active Tasks</h2>
+                                <p className="text-sm text-slate-400 mt-1">Today's tasks, flexible tasks, and tomorrow's planning</p>
+                            </div>
+                        </div>
+
+                        {/* Dzisiejsze zadania */}
+                        <div className="mb-6">
+                            <h3 className="text-lg font-semibold mb-3 text-indigo-400">📅 Today ({formatShortDate(today)})</h3>
+                            <div className="space-y-3">
+                                {tasks.filter(t => !t.completed && t.dueDate === today).length === 0 ? (
+                                    <p className="text-slate-400 text-sm">No tasks for today</p>
+                                ) : (
+                                    tasks.filter(t => !t.completed && t.dueDate === today).map(task => {
+                                        const project = task.projectId ? projects.find(p => p.id === task.projectId) : null;
+                                        const taskClass = task.classId ? taskClasses.find(c => c.id === task.classId) : null;
+                                        const skill = task.skillId ? skills.find(s => s.id === task.skillId) : null;
+
+                                        return (
+                                            <div key={task.id} className="bg-slate-900 rounded-lg p-4 border border-slate-700">
+                                                <div className="flex items-start gap-4">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={task.completed}
+                                                        onChange={() => toggleTask(task.id, today)}
+                                                        className="mt-1 w-5 h-5 rounded border-slate-600 text-indigo-600 focus:ring-indigo-500"
+                                                    />
+                                                    <div className="flex-1">
+                                                        <h3 className="text-lg font-semibold">{task.name}</h3>
+                                                        {task.description && (
+                                                            <p className="text-sm text-slate-400 mt-1">{task.description}</p>
+                                                        )}
+                                                        <div className="flex flex-wrap gap-2 mt-3">
+                                                            <span className="text-xs px-3 py-1 rounded-full bg-indigo-900 text-indigo-300 border border-indigo-700">
+                                                                {task.xpReward} XP
+                                                            </span>
+                                                            {task.priority && (
+                                                                <span
+                                                                    className={`text-xs px-3 py-1 rounded-full ${task.priority === "high"
+                                                                        ? "bg-rose-900 text-rose-300 border border-rose-700"
+                                                                        : task.priority === "medium"
+                                                                            ? "bg-amber-900 text-amber-300 border border-amber-700"
+                                                                            : "bg-slate-700 text-slate-300 border border-slate-600"
+                                                                        }`}
+                                                                >
+                                                                    {task.priority}
+                                                                </span>
+                                                            )}
+                                                            {project && (
+                                                                <span
+                                                                    className="text-xs px-3 py-1 rounded-full border"
+                                                                    style={{
+                                                                        borderColor: project.color,
+                                                                        color: project.color,
+                                                                        backgroundColor: `${project.color}20`,
+                                                                    }}
+                                                                >
+                                                                    {project.name}
+                                                                </span>
+                                                            )}
+                                                            {taskClass && (
+                                                                <span
+                                                                    className="text-xs px-3 py-1 rounded-full border"
+                                                                    style={{
+                                                                        borderColor: taskClass.color,
+                                                                        color: taskClass.color,
+                                                                        backgroundColor: `${taskClass.color}20`,
+                                                                    }}
+                                                                >
+                                                                    {taskClass.name}
+                                                                </span>
+                                                            )}
+                                                            {skill && (
+                                                                <span
+                                                                    className="text-xs px-3 py-1 rounded-full border"
+                                                                    style={{
+                                                                        borderColor: skill.color,
+                                                                        color: skill.color,
+                                                                        backgroundColor: `${skill.color}20`,
+                                                                    }}
+                                                                >
+                                                                    {skill.name}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })
                                 )}
                             </div>
+                        </div>
 
-                            <div className="flex gap-3 mt-6">
-                                <button
-                                    onClick={saveTask}
-                                    className="flex-1 bg-indigo-600 text-white px-6 py-3 rounded-lg hover:bg-indigo-700"
-                                >
-                                    {editingTask ? "Save Changes" : "Create Quest"}
-                                </button>
-                                <button
-                                    onClick={closeTaskModal}
-                                    className="flex-1 bg-slate-900 text-slate-300 px-6 py-3 rounded-lg hover:bg-slate-700 border border-slate-700"
-                                >
-                                    Cancel
-                                </button>
+                        {/* Flexible tasks (bez due date) */}
+                        <div className="mb-6">
+                            <h3 className="text-lg font-semibold mb-3 text-teal-400">🕐 Flexible Tasks</h3>
+                            <div className="space-y-3">
+                                {tasks.filter(t => !t.completed && t.isFlexible).length === 0 ? (
+                                    <p className="text-slate-400 text-sm">No flexible tasks</p>
+                                ) : (
+                                    tasks.filter(t => !t.completed && t.isFlexible).map(task => {
+                                        const project = task.projectId ? projects.find(p => p.id === task.projectId) : null;
+                                        const taskClass = task.classId ? taskClasses.find(c => c.id === task.classId) : null;
+                                        const skill = task.skillId ? skills.find(s => s.id === task.skillId) : null;
+
+                                        return (
+                                            <div key={task.id} className="bg-slate-900 rounded-lg p-4 border border-teal-700">
+                                                <div className="flex items-start gap-4">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={task.completed}
+                                                        onChange={() => toggleTask(task.id, today)}
+                                                        className="mt-1 w-5 h-5 rounded border-slate-600 text-teal-600 focus:ring-teal-500"
+                                                    />
+                                                    <div className="flex-1">
+                                                        <h3 className="text-lg font-semibold">{task.name}</h3>
+                                                        {task.description && (
+                                                            <p className="text-sm text-slate-400 mt-1">{task.description}</p>
+                                                        )}
+                                                        <div className="flex flex-wrap gap-2 mt-3">
+                                                            <span className="text-xs px-3 py-1 rounded-full bg-indigo-900 text-indigo-300 border border-indigo-700">
+                                                                {task.xpReward} XP
+                                                            </span>
+                                                            <span className="text-xs px-3 py-1 rounded-full bg-teal-900 text-teal-300 border border-teal-700">
+                                                                🕐 No deadline
+                                                            </span>
+                                                            {task.priority && (
+                                                                <span
+                                                                    className={`text-xs px-3 py-1 rounded-full ${task.priority === "high"
+                                                                        ? "bg-rose-900 text-rose-300 border border-rose-700"
+                                                                        : task.priority === "medium"
+                                                                            ? "bg-amber-900 text-amber-300 border border-amber-700"
+                                                                            : "bg-slate-700 text-slate-300 border border-slate-600"
+                                                                        }`}
+                                                                >
+                                                                    {task.priority}
+                                                                </span>
+                                                            )}
+                                                            {project && (
+                                                                <span
+                                                                    className="text-xs px-3 py-1 rounded-full border"
+                                                                    style={{
+                                                                        borderColor: project.color,
+                                                                        color: project.color,
+                                                                        backgroundColor: `${project.color}20`,
+                                                                    }}
+                                                                >
+                                                                    {project.name}
+                                                                </span>
+                                                            )}
+                                                            {taskClass && (
+                                                                <span
+                                                                    className="text-xs px-3 py-1 rounded-full border"
+                                                                    style={{
+                                                                        borderColor: taskClass.color,
+                                                                        color: taskClass.color,
+                                                                        backgroundColor: `${taskClass.color}20`,
+                                                                    }}
+                                                                >
+                                                                    {taskClass.name}
+                                                                </span>
+                                                            )}
+                                                            {skill && (
+                                                                <span
+                                                                    className="text-xs px-3 py-1 rounded-full border"
+                                                                    style={{
+                                                                        borderColor: skill.color,
+                                                                        color: skill.color,
+                                                                        backgroundColor: `${skill.color}20`,
+                                                                    }}
+                                                                >
+                                                                    {skill.name}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Jutrzejsze zadania */}
+                        <div>
+                            <h3 className="text-lg font-semibold mb-3 text-purple-400">🌅 Tomorrow ({formatShortDate(tomorrow)})</h3>
+                            <div className="space-y-3">
+                                {tasks.filter(t => !t.completed && t.dueDate === tomorrow).length === 0 ? (
+                                    <p className="text-slate-400 text-sm">No tasks scheduled for tomorrow</p>
+                                ) : (
+                                    tasks.filter(t => !t.completed && t.dueDate === tomorrow).map(task => {
+                                        const project = task.projectId ? projects.find(p => p.id === task.projectId) : null;
+                                        const taskClass = task.classId ? taskClasses.find(c => c.id === task.classId) : null;
+                                        const skill = task.skillId ? skills.find(s => s.id === task.skillId) : null;
+
+                                        return (
+                                            <div key={task.id} className="bg-slate-900 rounded-lg p-4 border border-slate-700 opacity-75">
+                                                <div className="flex items-start gap-4">
+                                                    <div className="mt-1 w-5 h-5 rounded border-2 border-slate-600" />
+                                                    <div className="flex-1">
+                                                        <h3 className="text-lg font-semibold">{task.name}</h3>
+                                                        {task.description && (
+                                                            <p className="text-sm text-slate-400 mt-1">{task.description}</p>
+                                                        )}
+                                                        <div className="flex flex-wrap gap-2 mt-3">
+                                                            <span className="text-xs px-3 py-1 rounded-full bg-indigo-900 text-indigo-300 border border-indigo-700">
+                                                                {task.xpReward} XP
+                                                            </span>
+                                                            {task.priority && (
+                                                                <span
+                                                                    className={`text-xs px-3 py-1 rounded-full ${task.priority === "high"
+                                                                        ? "bg-rose-900 text-rose-300 border border-rose-700"
+                                                                        : task.priority === "medium"
+                                                                            ? "bg-amber-900 text-amber-300 border border-amber-700"
+                                                                            : "bg-slate-700 text-slate-300 border border-slate-600"
+                                                                        }`}
+                                                                >
+                                                                    {task.priority}
+                                                                </span>
+                                                            )}
+                                                            {project && (
+                                                                <span
+                                                                    className="text-xs px-3 py-1 rounded-full border"
+                                                                    style={{
+                                                                        borderColor: project.color,
+                                                                        color: project.color,
+                                                                        backgroundColor: `${project.color}20`,
+                                                                    }}
+                                                                >
+                                                                    {project.name}
+                                                                </span>
+                                                            )}
+                                                            {taskClass && (
+                                                                <span
+                                                                    className="text-xs px-3 py-1 rounded-full border"
+                                                                    style={{
+                                                                        borderColor: taskClass.color,
+                                                                        color: taskClass.color,
+                                                                        backgroundColor: `${taskClass.color}20`,
+                                                                    }}
+                                                                >
+                                                                    {taskClass.name}
+                                                                </span>
+                                                            )}
+                                                            {skill && (
+                                                                <span
+                                                                    className="text-xs px-3 py-1 rounded-full border"
+                                                                    style={{
+                                                                        borderColor: skill.color,
+                                                                        color: skill.color,
+                                                                        backgroundColor: `${skill.color}20`,
+                                                                    }}
+                                                                >
+                                                                    {skill.name}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })
+                                )}
                             </div>
                         </div>
                     </div>
                 )}
 
+                {/* Character View */}
+                {view === "character" && (
+                    <div className="bg-slate-800 rounded-xl shadow p-4 sm:p-6 border border-slate-700 max-w-7xl mx-auto">
+                        <h2 className="text-2xl font-semibold mb-6">Character Profile</h2>
+
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                            <div className="bg-slate-900 rounded-lg p-6 border border-slate-700">
+                                <div className="flex items-center gap-4 mb-6">
+                                    <div className="text-6xl">{character.avatar}</div>
+                                    <div className="flex-1">
+                                        <input
+                                            type="text"
+                                            value={character.name}
+                                            onChange={(e) => setCharacter({ ...character, name: e.target.value })}
+                                            className="w-full text-2xl font-bold bg-transparent border-b-2 border-slate-700 focus:border-indigo-500 outline-none pb-1"
+                                        />
+                                        <p className="text-slate-400 mt-1">Level {character.level}</p>
+                                    </div>
+                                </div>
+
+                                <div className="mb-4">
+                                    <div className="flex justify-between text-sm mb-2">
+                                        <span>XP Progress</span>
+                                        <span className="text-indigo-400">
+                                            {character.xp} / {xpForNextLevel}
+                                        </span>
+                                    </div>
+                                    <ProgressBar value={character.xp} max={xpForNextLevel} />
+                                </div>
+
+                                <div className="grid grid-cols-4 gap-2 mb-6">
+                                    {AVATARS.map(avatar => (
+                                        <button
+                                            key={avatar}
+                                            onClick={() => setCharacter({ ...character, avatar })}
+                                            className={`text-4xl p-3 rounded-lg transition ${character.avatar === avatar
+                                                ? "bg-indigo-900 border-2 border-indigo-500"
+                                                : "bg-slate-800 hover:bg-slate-700 border-2 border-transparent"
+                                                }`}
+                                        >
+                                            {avatar}
+                                        </button>
+                                    ))}
+                                </div>
+
+                                <div className="space-y-2 text-sm text-slate-300">
+                                    <div className="flex justify-between">
+                                        <span>Total XP Earned:</span>
+                                        <span className="text-indigo-400 font-semibold">{character.totalXp}</span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                        <span>Total Quests:</span>
+                                        <span className="text-indigo-400 font-semibold">{tasks.length}</span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                        <span>Completed:</span>
+                                        <span className="text-indigo-400 font-semibold">
+                                            {tasks.filter(t => t.completed).length}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="bg-slate-900 rounded-lg p-6 border border-slate-700">
+                                <h3 className="text-xl font-semibold mb-4">Stats</h3>
+                                <div className="space-y-4">
+                                    {[
+                                        { name: "Strength", key: "strength", icon: "💪" },
+                                        { name: "Endurance", key: "endurance", icon: "🏃" },
+                                        { name: "Intelligence", key: "intelligence", icon: "🧠" },
+                                        { name: "Agility", key: "agility", icon: "⚡" },
+                                        { name: "Charisma", key: "charisma", icon: "✨" },
+                                    ].map(stat => {
+                                        const value = character[stat.key as keyof Character] as number;
+                                        const progress = character[`${stat.key}Progress` as keyof Character] as number;
+                                        return (
+                                            <div key={stat.key}>
+                                                <div className="flex justify-between items-center mb-2">
+                                                    <span className="text-sm">
+                                                        {stat.icon} {stat.name}
+                                                    </span>
+                                                    <span className="text-lg font-bold text-indigo-400">{value}</span>
+                                                </div>
+                                                <ProgressBar value={progress} max={value + 1} />
+                                                <p className="text-xs text-slate-400 mt-1">
+                                                    {progress}/{value + 1} tasks to level up
+                                                </p>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Settings View */}
                 {view === "settings" && (
-                    <div className="space-y-6 max-w-7xl mx-auto">
-                        <div className="bg-slate-800 rounded-xl shadow p-4 sm:p-6 border border-slate-700">
-                            <h2 className="text-2xl font-semibold mb-6">Character Settings</h2>
-
-                            <div className="space-y-4">
-                                <div>
-                                    <label className="block text-sm text-slate-300 mb-2">Character Name</label>
-                                    <input
-                                        type="text"
-                                        value={character.name}
-                                        onChange={(e) => setCharacter({ ...character, name: e.target.value })}
-                                        className="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-lg text-slate-100"
-                                    />
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm text-slate-300 mb-2">Avatar</label>
-                                    <div className="flex gap-2 flex-wrap">
-                                        {AVATARS.map((avatar) => (
-                                            <button
-                                                key={avatar}
-                                                onClick={() => setCharacter({ ...character, avatar })}
-                                                className={`text-4xl p-3 rounded-lg transition ${character.avatar === avatar
-                                                        ? "bg-indigo-600"
-                                                        : "bg-slate-900 hover:bg-slate-700 border border-slate-700"
-                                                    }`}
-                                            >
-                                                {avatar}
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
-                            </div>
+                    <div className="bg-slate-800 rounded-xl shadow p-4 sm:p-6 border border-slate-700 max-w-7xl mx-auto">
+                        <div className="flex justify-between items-center mb-6">
+                            <h2 className="text-2xl font-semibold">Settings</h2>
+                            {/* NOWE: Ikona informacyjna */}
+                            <button
+                                onClick={() => setShowInfoPopup(true)}
+                                className="w-10 h-10 rounded-full bg-slate-900 border border-slate-700 hover:border-indigo-500 transition flex items-center justify-center text-xl"
+                                title="Information"
+                            >
+                                ℹ️
+                            </button>
                         </div>
 
-                        <div className="bg-slate-800 rounded-xl shadow p-4 sm:p-6 border border-slate-700">
-                            <h2 className="text-2xl font-semibold mb-6">Stats</h2>
+                        <div className="space-y-6">
+                            <div className="bg-slate-900 rounded-lg p-4 border border-slate-700">
+                                <h3 className="text-lg font-semibold mb-3">Skills Management</h3>
+                                <p className="text-sm text-slate-400 mb-4">
+                                    Create custom skills to track your personal growth. Assign skills to tasks to level them up!
+                                </p>
 
-                            {character.unspentPoints > 0 && (
-                                <div className="mb-4 p-4 bg-indigo-900 rounded-lg border border-indigo-700">
-                                    <p className="text-indigo-100">
-                                        You have <strong>{character.unspentPoints}</strong> unspent stat points!
-                                    </p>
-                                </div>
-                            )}
-
-                            <div className="space-y-4">
-                                <div className="p-4 bg-slate-900 rounded-lg border border-slate-700">
-                                    <div className="flex items-center justify-between mb-3">
-                                        <div className="flex items-center gap-3">
-                                            <span className="text-3xl">💪</span>
-                                            <div>
-                                                <div className="font-semibold text-rose-400">Strength</div>
-                                                <div className="text-2xl text-slate-100">{character.strength}</div>
-                                            </div>
-                                        </div>
-                                        <button
-                                            onClick={increaseStrength}
-                                            disabled={character.unspentPoints === 0}
-                                            className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                                        >
-                                            Level Up
-                                        </button>
-                                    </div>
-                                    <div>
-                                        <p className="text-xs text-slate-400 mb-1">Progress to next level</p>
-                                        <ProgressBar value={character.strengthProgress} max={character.strength + 1} />
-                                        <p className="text-xs text-slate-400 mt-1">
-                                            {character.strengthProgress}/{character.strength + 1} tasks to level {character.strength + 1}
-                                        </p>
-                                    </div>
-                                </div>
-
-                                <div className="p-4 bg-slate-900 rounded-lg border border-slate-700">
-                                    <div className="flex items-center justify-between mb-3">
-                                        <div className="flex items-center gap-3">
-                                            <span className="text-3xl">❤️</span>
-                                            <div>
-                                                <div className="font-semibold text-orange-400">Endurance</div>
-                                                <div className="text-2xl text-slate-100">{character.endurance}</div>
-                                            </div>
-                                        </div>
-                                        <button
-                                            onClick={increaseEndurance}
-                                            disabled={character.unspentPoints === 0}
-                                            className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                                        >
-                                            Level Up
-                                        </button>
-                                    </div>
-                                    <div>
-                                        <p className="text-xs text-slate-400 mb-1">Progress to next level</p>
-                                        <ProgressBar value={character.enduranceProgress} max={character.endurance + 1} />
-                                        <p className="text-xs text-slate-400 mt-1">
-                                            {character.enduranceProgress}/{character.endurance + 1} tasks to level {character.endurance + 1}
-                                        </p>
-                                    </div>
-                                </div>
-
-                                <div className="p-4 bg-slate-900 rounded-lg border border-slate-700">
-                                    <div className="flex items-center justify-between mb-3">
-                                        <div className="flex items-center gap-3">
-                                            <span className="text-3xl">🧠</span>
-                                            <div>
-                                                <div className="font-semibold text-blue-400">Intelligence</div>
-                                                <div className="text-2xl text-slate-100">{character.intelligence}</div>
-                                            </div>
-                                        </div>
-                                        <button
-                                            onClick={increaseIntelligence}
-                                            disabled={character.unspentPoints === 0}
-                                            className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                                        >
-                                            Level Up
-                                        </button>
-                                    </div>
-                                    <div>
-                                        <p className="text-xs text-slate-400 mb-1">Progress to next level</p>
-                                        <ProgressBar value={character.intelligenceProgress} max={character.intelligence + 1} />
-                                        <p className="text-xs text-slate-400 mt-1">
-                                            {character.intelligenceProgress}/{character.intelligence + 1} tasks to level {character.intelligence + 1}
-                                        </p>
-                                    </div>
-                                </div>
-
-                                <div className="p-4 bg-slate-900 rounded-lg border border-slate-700">
-                                    <div className="flex items-center justify-between mb-3">
-                                        <div className="flex items-center gap-3">
-                                            <span className="text-3xl">⚡</span>
-                                            <div>
-                                                <div className="font-semibold text-emerald-400">Agility</div>
-                                                <div className="text-2xl text-slate-100">{character.agility}</div>
-                                            </div>
-                                        </div>
-                                        <button
-                                            onClick={increaseAgility}
-                                            disabled={character.unspentPoints === 0}
-                                            className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                                        >
-                                            Level Up
-                                        </button>
-                                    </div>
-                                    <div>
-                                        <p className="text-xs text-slate-400 mb-1">Progress to next level</p>
-                                        <ProgressBar value={character.agilityProgress} max={character.agility + 1} />
-                                        <p className="text-xs text-slate-400 mt-1">
-                                            {character.agilityProgress}/{character.agility + 1} tasks to level {character.agility + 1}
-                                        </p>
-                                    </div>
-                                </div>
-
-                                <div className="p-4 bg-slate-900 rounded-lg border border-slate-700">
-                                    <div className="flex items-center justify-between mb-3">
-                                        <div className="flex items-center gap-3">
-                                            <span className="text-3xl">✨</span>
-                                            <div>
-                                                <div className="font-semibold text-purple-400">Charisma</div>
-                                                <div className="text-2xl text-slate-100">{character.charisma}</div>
-                                            </div>
-                                        </div>
-                                        <button
-                                            onClick={increaseCharisma}
-                                            disabled={character.unspentPoints === 0}
-                                            className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                                        >
-                                            Level Up
-                                        </button>
-                                    </div>
-                                    <div>
-                                        <p className="text-xs text-slate-400 mb-1">Progress to next level</p>
-                                        <ProgressBar value={character.charismaProgress} max={character.charisma + 1} />
-                                        <p className="text-xs text-slate-400 mt-1">
-                                            {character.charismaProgress}/{character.charisma + 1} tasks to level {character.charisma + 1}
-                                        </p>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="bg-slate-800 rounded-xl shadow p-4 sm:p-6 border border-slate-700">
-                            <h2 className="text-2xl font-semibold mb-6">Skills</h2>
-
-                            <div className="bg-slate-900 rounded-lg p-4 mb-4 border border-slate-700">
-                                <h3 className="text-lg font-semibold mb-3">Create New Skill</h3>
-                                <div className="flex gap-3">
+                                <div className="flex gap-3 mb-4">
                                     <input
                                         type="text"
-                                        placeholder="Skill name (e.g. Guitar, Spanish, Cooking)"
+                                        placeholder="Skill name (e.g. Cooking, Guitar)"
                                         value={newSkillName}
                                         onChange={(e) => setNewSkillName(e.target.value)}
                                         className="flex-1 px-4 py-3 bg-slate-800 border border-slate-700 rounded-lg text-slate-100"
@@ -1633,31 +1471,25 @@ export default function App() {
                                         Add Skill
                                     </button>
                                 </div>
-                            </div>
 
-                            <div className="space-y-4">
                                 <div className="space-y-3">
                                     {skills.length > 0 ? (
-                                        skills.map((s) => (
+                                        skills.map(s => (
                                             <div
                                                 key={s.id}
-                                                className="bg-slate-900 rounded-lg p-4 border border-slate-700"
+                                                className="bg-slate-800 rounded-lg p-4 border border-slate-700"
                                             >
-                                                <div className="flex items-center justify-between mb-2">
+                                                <div className="flex items-center justify-between mb-3">
                                                     <div className="flex items-center gap-3">
                                                         <div
                                                             className="w-10 h-10 rounded-full flex items-center justify-center text-lg font-bold"
                                                             style={{ background: s.color }}
                                                         >
-                                                            {s.level}
+                                                            {s.name[0]}
                                                         </div>
                                                         <div>
-                                                            <div className="font-semibold text-slate-100">
-                                                                {s.name}
-                                                            </div>
-                                                            <div className="text-sm text-slate-400">
-                                                                Level {s.level}
-                                                            </div>
+                                                            <h4 className="font-semibold text-slate-100">{s.name}</h4>
+                                                            <p className="text-xs text-slate-400">Level {s.level}</p>
                                                         </div>
                                                     </div>
                                                     <button
@@ -1667,7 +1499,7 @@ export default function App() {
                                                         Delete
                                                     </button>
                                                 </div>
-                                                <div className="mt-2">
+                                                <div>
                                                     <p className="text-xs text-slate-400 mb-1">
                                                         Progress to next level
                                                     </p>
@@ -1685,50 +1517,50 @@ export default function App() {
                                     )}
                                 </div>
                             </div>
-                        </div>
 
-                        <div className="bg-rose-900 rounded-xl p-6 border border-rose-700">
-                            <h3 className="text-xl font-semibold text-rose-100 mb-2">Danger Zone</h3>
-                            <p className="text-rose-200 text-sm mb-4">
-                                Reset all progress and start fresh. This action cannot be undone.
-                            </p>
-                            <button
-                                onClick={() => setShowResetConfirm(true)}
-                                className="bg-rose-700 hover:bg-rose-600 text-white px-6 py-3 rounded-lg"
-                            >
-                                Reset All Progress
-                            </button>
-                        </div>
+                            <div className="bg-rose-900 rounded-xl p-6 border border-rose-700">
+                                <h3 className="text-xl font-semibold text-rose-100 mb-2">Danger Zone</h3>
+                                <p className="text-rose-200 text-sm mb-4">
+                                    Reset all progress and start fresh. This action cannot be undone.
+                                </p>
+                                <button
+                                    onClick={() => setShowResetConfirm(true)}
+                                    className="bg-rose-700 hover:bg-rose-600 text-white px-6 py-3 rounded-lg"
+                                >
+                                    Reset All Progress
+                                </button>
+                            </div>
 
-                        {showResetConfirm && (
-                            <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 p-4">
-                                <div className="bg-slate-800 rounded-xl p-6 max-w-md w-full border border-slate-700">
-                                    <h3 className="text-2xl font-semibold mb-4 text-rose-400">⚠️ Confirm Reset</h3>
-                                    <p className="text-slate-300 mb-6">
-                                        Are you sure you want to reset all progress? This will delete all tasks,
-                                        projects, classes, skills and stats.
-                                    </p>
-                                    <div className="flex gap-3">
-                                        <button
-                                            onClick={resetProgress}
-                                            className="flex-1 bg-rose-700 hover:bg-rose-600 text-white px-6 py-3 rounded-lg"
-                                        >
-                                            Yes, Reset Everything
-                                        </button>
-                                        <button
-                                            onClick={() => setShowResetConfirm(false)}
-                                            className="flex-1 bg-slate-900 text-slate-300 px-6 py-3 rounded-lg"
-                                        >
-                                            Cancel
-                                        </button>
+                            {showResetConfirm && (
+                                <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 p-4">
+                                    <div className="bg-slate-800 rounded-xl p-6 max-w-md w-full border border-slate-700">
+                                        <h3 className="text-2xl font-semibold mb-4 text-rose-400">⚠️ Confirm Reset</h3>
+                                        <p className="text-slate-300 mb-6">
+                                            Are you sure you want to reset all progress? This will delete all tasks,
+                                            projects, classes, skills and stats.
+                                        </p>
+                                        <div className="flex gap-3">
+                                            <button
+                                                onClick={resetProgress}
+                                                className="flex-1 bg-rose-700 hover:bg-rose-600 text-white px-6 py-3 rounded-lg"
+                                            >
+                                                Yes, Reset Everything
+                                            </button>
+                                            <button
+                                                onClick={() => setShowResetConfirm(false)}
+                                                className="flex-1 bg-slate-900 text-slate-300 px-6 py-3 rounded-lg"
+                                            >
+                                                Cancel
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
-                        )}
+                            )}
+                        </div>
                     </div>
                 )}
 
-
+                {/* Projects View */}
                 {view === "projects" && (
                     <div className="bg-slate-800 rounded-xl shadow p-4 sm:p-6 border border-slate-700 max-w-7xl mx-auto">
                         <h2 className="text-2xl font-semibold mb-6">Projects & Classes</h2>
@@ -1739,7 +1571,6 @@ export default function App() {
                                 <input type="text" placeholder="Project name" value={newProjectName} onChange={(e) => setNewProjectName(e.target.value)} className="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-lg text-slate-100" />
                                 <input type="text" placeholder="Description" value={newProjectDesc} onChange={(e) => setNewProjectDesc(e.target.value)} className="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-lg text-slate-100" />
                                 <div className="flex gap-3">
-
                                     <button onClick={addProject} className="flex-1 bg-indigo-600 text-white px-6 py-3 rounded-lg">Create Project</button>
                                 </div>
                             </div>
@@ -1802,7 +1633,6 @@ export default function App() {
                                     <option value="charisma">Charisma</option>
                                 </select>
                                 <div className="flex gap-2 items-center">
-
                                     <button onClick={addTaskClass} className="flex-1 bg-indigo-600 text-white px-4 py-2 rounded-lg">Add Class</button>
                                 </div>
                             </div>
@@ -1822,8 +1652,411 @@ export default function App() {
                                 ))}
                             </div>
                         </div>
+                    </div>
+                )}
 
+                {/* Task Creation/Edit Modal */}
+                {showTaskModal && (
+                    <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 p-4 overflow-y-auto">
+                        <div className="bg-slate-800 rounded-xl p-6 max-w-2xl w-full border border-slate-700 my-8">
+                            <h3 className="text-2xl font-semibold mb-6">
+                                {editingTask ? "Edit Quest" : "Create New Quest"}
+                            </h3>
 
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="block text-sm font-medium mb-2">Quest Name</label>
+                                    <input
+                                        type="text"
+                                        value={taskName}
+                                        onChange={(e) => setTaskName(e.target.value)}
+                                        placeholder="Enter quest name..."
+                                        className="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-lg text-slate-100"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium mb-2">Description</label>
+                                    <textarea
+                                        value={taskDescription}
+                                        onChange={(e) => setTaskDescription(e.target.value)}
+                                        placeholder="Quest details..."
+                                        rows={3}
+                                        className="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-lg text-slate-100"
+                                    />
+                                </div>
+
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-sm font-medium mb-2">Priority</label>
+                                        <select
+                                            value={taskPriority}
+                                            onChange={(e) => setTaskPriority(e.target.value as "low" | "medium" | "high")}
+                                            className="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-lg text-slate-100"
+                                        >
+                                            <option value="low">Low</option>
+                                            <option value="medium">Medium</option>
+                                            <option value="high">High</option>
+                                        </select>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-sm font-medium mb-2">XP Reward</label>
+                                        <input
+                                            type="number"
+                                            value={taskXpReward}
+                                            onChange={(e) => setTaskXpReward(Number(e.target.value))}
+                                            className="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-lg text-slate-100"
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* NOWE: Checkbox dla Flexible Task */}
+                                <div className="flex items-center gap-3 p-4 bg-slate-900 rounded-lg border border-slate-700">
+                                    <input
+                                        type="checkbox"
+                                        id="flexibleTask"
+                                        checked={taskIsFlexible}
+                                        onChange={(e) => setTaskIsFlexible(e.target.checked)}
+                                        className="w-5 h-5 rounded border-slate-600 text-teal-600 focus:ring-teal-500"
+                                    />
+                                    <label htmlFor="flexibleTask" className="text-sm font-medium cursor-pointer">
+                                        🕐 Flexible Task (no due date) - Due date will be set when completed
+                                    </label>
+                                </div>
+
+                                {/* Due Date - ukryte gdy flexible */}
+                                {!taskIsFlexible && (
+                                    <div>
+                                        <label className="block text-sm font-medium mb-2">Due Date</label>
+                                        <input
+                                            type="date"
+                                            value={taskDueDate}
+                                            onChange={(e) => setTaskDueDate(e.target.value)}
+                                            className="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-lg text-slate-100"
+                                        />
+                                    </div>
+                                )}
+
+                                <div>
+                                    <label className="block text-sm font-medium mb-2">Project (Optional)</label>
+                                    <select
+                                        value={taskProjectId}
+                                        onChange={(e) => setTaskProjectId(e.target.value)}
+                                        className="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-lg text-slate-100"
+                                    >
+                                        <option value="">No Project</option>
+                                        {projects.map(p => (
+                                            <option key={p.id} value={p.id}>
+                                                {p.name}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium mb-2">Task Class (Optional)</label>
+                                    <select
+                                        value={taskClassId}
+                                        onChange={(e) => setTaskClassId(e.target.value)}
+                                        className="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-lg text-slate-100"
+                                    >
+                                        <option value="">No Class</option>
+                                        {taskClasses.map(c => (
+                                            <option key={c.id} value={c.id}>
+                                                {c.name} ({c.statType})
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium mb-2">Skill (Optional)</label>
+                                    <select
+                                        value={taskSkillId}
+                                        onChange={(e) => setTaskSkillId(e.target.value)}
+                                        className="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-lg text-slate-100"
+                                    >
+                                        <option value="">No Skill</option>
+                                        {skills.map(s => (
+                                            <option key={s.id} value={s.id}>
+                                                {s.name} (Lvl {s.level})
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                <div className="flex items-center gap-3 p-4 bg-slate-900 rounded-lg border border-slate-700">
+                                    <input
+                                        type="checkbox"
+                                        id="recurringTask"
+                                        checked={taskIsRecurring}
+                                        onChange={(e) => setTaskIsRecurring(e.target.checked)}
+                                        className="w-5 h-5 rounded border-slate-600 text-indigo-600 focus:ring-indigo-500"
+                                    />
+                                    <label htmlFor="recurringTask" className="text-sm font-medium cursor-pointer">
+                                        🔄 Recurring Task
+                                    </label>
+                                </div>
+
+                                {taskIsRecurring && (
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pl-8">
+                                        <div>
+                                            <label className="block text-sm font-medium mb-2">Frequency</label>
+                                            <select
+                                                value={taskRecurringType}
+                                                onChange={(e) => setTaskRecurringType(e.target.value as "daily" | "weekly" | "monthly")}
+                                                className="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-lg text-slate-100"
+                                            >
+                                                <option value="daily">Daily</option>
+                                                <option value="weekly">Weekly</option>
+                                                <option value="monthly">Monthly</option>
+                                            </select>
+                                        </div>
+
+                                        {taskRecurringType !== "daily" && (
+                                            <div>
+                                                <label className="block text-sm font-medium mb-2">
+                                                    {taskRecurringType === "weekly" ? "Day of Week" : "Day of Month"}
+                                                </label>
+                                                <input
+                                                    type="number"
+                                                    value={taskRecurringDay}
+                                                    onChange={(e) => setTaskRecurringDay(Number(e.target.value))}
+                                                    min={1}
+                                                    max={taskRecurringType === "weekly" ? 7 : 31}
+                                                    className="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-lg text-slate-100"
+                                                />
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="flex gap-3 mt-6">
+                                <button
+                                    onClick={saveTask}
+                                    className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-lg transition"
+                                >
+                                    {editingTask ? "Save Changes" : "Create Quest"}
+                                </button>
+                                <button
+                                    onClick={closeTaskModal}
+                                    className="flex-1 bg-slate-900 text-slate-300 px-6 py-3 rounded-lg hover:bg-slate-700 transition"
+                                >
+                                    Cancel
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* NOWE: Modal podglądu ukończonego zadania */}
+                {showCompletedTaskModal && viewingTask && (
+                    <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 p-4 overflow-y-auto">
+                        <div className="bg-slate-800 rounded-xl p-6 max-w-2xl w-full border border-slate-700 my-8">
+                            <div className="flex justify-between items-start mb-6">
+                                <h3 className="text-2xl font-semibold">✅ Completed Quest</h3>
+                                <button
+                                    onClick={() => setShowCompletedTaskModal(false)}
+                                    className="text-slate-400 hover:text-slate-200 text-2xl"
+                                >
+                                    ✕
+                                </button>
+                            </div>
+
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-400 mb-2">Quest Name</label>
+                                    <p className="text-xl font-semibold text-slate-100">{viewingTask.name}</p>
+                                </div>
+
+                                {viewingTask.description && (
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-400 mb-2">Description</label>
+                                        <p className="text-slate-300 bg-slate-900 p-4 rounded-lg border border-slate-700">
+                                            {viewingTask.description}
+                                        </p>
+                                    </div>
+                                )}
+
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-400 mb-2">Priority</label>
+                                        <span
+                                            className={`inline-block px-4 py-2 rounded-lg text-sm font-medium ${viewingTask.priority === "high"
+                                                ? "bg-rose-900 text-rose-300 border border-rose-700"
+                                                : viewingTask.priority === "medium"
+                                                    ? "bg-amber-900 text-amber-300 border border-amber-700"
+                                                    : "bg-slate-700 text-slate-300 border border-slate-600"
+                                                }`}
+                                        >
+                                            {viewingTask.priority}
+                                        </span>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-400 mb-2">XP Earned</label>
+                                        <span className="inline-block px-4 py-2 rounded-lg text-sm font-medium bg-indigo-900 text-indigo-300 border border-indigo-700">
+                                            {viewingTask.xpReward} XP
+                                        </span>
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-400 mb-2">Due Date</label>
+                                        <p className="text-slate-300 bg-slate-900 p-3 rounded-lg border border-slate-700">
+                                            {viewingTask.dueDate ? formatShortDate(viewingTask.dueDate) : "No due date"}
+                                        </p>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-400 mb-2">Completed At</label>
+                                        <p className="text-slate-300 bg-slate-900 p-3 rounded-lg border border-slate-700">
+                                            {viewingTask.completedAt ? formatFullDateTime(viewingTask.completedAt) : "Unknown"}
+                                        </p>
+                                    </div>
+                                </div>
+
+                                {viewingTask.projectId && (
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-400 mb-2">Project</label>
+                                        <span
+                                            className="inline-block px-4 py-2 rounded-lg text-sm font-medium border"
+                                            style={{
+                                                borderColor: projects.find(p => p.id === viewingTask.projectId)?.color,
+                                                color: projects.find(p => p.id === viewingTask.projectId)?.color,
+                                                backgroundColor: `${projects.find(p => p.id === viewingTask.projectId)?.color}20`,
+                                            }}
+                                        >
+                                            {projects.find(p => p.id === viewingTask.projectId)?.name}
+                                        </span>
+                                    </div>
+                                )}
+
+                                {viewingTask.classId && (
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-400 mb-2">Task Class</label>
+                                        <span
+                                            className="inline-block px-4 py-2 rounded-lg text-sm font-medium border"
+                                            style={{
+                                                borderColor: taskClasses.find(c => c.id === viewingTask.classId)?.color,
+                                                color: taskClasses.find(c => c.id === viewingTask.classId)?.color,
+                                                backgroundColor: `${taskClasses.find(c => c.id === viewingTask.classId)?.color}20`,
+                                            }}
+                                        >
+                                            {taskClasses.find(c => c.id === viewingTask.classId)?.name} (
+                                            {taskClasses.find(c => c.id === viewingTask.classId)?.statType})
+                                        </span>
+                                    </div>
+                                )}
+
+                                {viewingTask.skillId && (
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-400 mb-2">Skill</label>
+                                        <span
+                                            className="inline-block px-4 py-2 rounded-lg text-sm font-medium border"
+                                            style={{
+                                                borderColor: skills.find(s => s.id === viewingTask.skillId)?.color,
+                                                color: skills.find(s => s.id === viewingTask.skillId)?.color,
+                                                backgroundColor: `${skills.find(s => s.id === viewingTask.skillId)?.color}20`,
+                                            }}
+                                        >
+                                            {skills.find(s => s.id === viewingTask.skillId)?.name}
+                                        </span>
+                                    </div>
+                                )}
+
+                                {viewingTask.isRecurring && (
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-400 mb-2">Recurring</label>
+                                        <span className="inline-block px-4 py-2 rounded-lg text-sm font-medium bg-purple-900 text-purple-300 border border-purple-700">
+                                            🔄 {viewingTask.recurringType}
+                                        </span>
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="mt-6">
+                                <button
+                                    onClick={() => setShowCompletedTaskModal(false)}
+                                    className="w-full bg-slate-900 text-slate-300 px-6 py-3 rounded-lg hover:bg-slate-700 transition"
+                                >
+                                    Close
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* NOWE: Info Popup */}
+                {showInfoPopup && (
+                    <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 p-4 overflow-y-auto">
+                        <div className="bg-slate-800 rounded-xl p-6 max-w-md w-full border border-slate-700 my-8">
+                            <div className="flex justify-between items-start mb-6">
+                                <h3 className="text-2xl font-semibold">ℹ️ Information</h3>
+                                <button
+                                    onClick={() => setShowInfoPopup(false)}
+                                    className="text-slate-400 hover:text-slate-200 text-2xl"
+                                >
+                                    ✕
+                                </button>
+                            </div>
+
+                            <div className="space-y-6">
+                                <div>
+                                    <h4 className="text-lg font-semibold mb-2 text-indigo-400">About TaskQuest</h4>
+                                    <p className="text-slate-300 text-sm">
+                                        TaskQuest is a gamified task management application that turns your daily tasks
+                                        into an RPG adventure. Complete quests, earn XP, level up your character, and
+                                        develop your skills!
+                                    </p>
+                                </div>
+
+                                <div>
+                                    <h4 className="text-lg font-semibold mb-2 text-indigo-400">Creator</h4>
+                                    <p className="text-slate-300 text-sm">
+                                        Created with ❤️ by [Your Name]
+                                    </p>
+                                    <p className="text-slate-400 text-xs mt-1">
+                                        Version 2.0 - October 2025
+                                    </p>
+                                </div>
+
+                                <div>
+                                    <h4 className="text-lg font-semibold mb-2 text-indigo-400">Privacy Policy</h4>
+                                    <p className="text-slate-300 text-sm">
+                                        All your data is stored locally in your browser using localStorage. We do not
+                                        collect, transmit, or store any of your personal information on external servers.
+                                        Your tasks, character progress, and settings remain completely private and under
+                                        your control.
+                                    </p>
+                                </div>
+
+                                <div>
+                                    <h4 className="text-lg font-semibold mb-2 text-indigo-400">Features</h4>
+                                    <ul className="text-slate-300 text-sm space-y-1">
+                                        <li>• Daily, Weekly, and Monthly task views</li>
+                                        <li>• RPG-style character progression</li>
+                                        <li>• Custom skills and task classes</li>
+                                        <li>• Project management</li>
+                                        <li>• Flexible tasks without deadlines</li>
+                                        <li>• Recurring tasks support</li>
+                                        <li>• Active Tasks overview</li>
+                                    </ul>
+                                </div>
+                            </div>
+
+                            <div className="mt-6">
+                                <button
+                                    onClick={() => setShowInfoPopup(false)}
+                                    className="w-full bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-lg transition"
+                                >
+                                    Got it!
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 )}
             </div>
