@@ -555,17 +555,13 @@ export default function App() {
     const monthDates = getMonthDates(selectedMonth);
 
     const dailyTasks = getTasksForDate(selectedDate);
-    const weeklyTasks = weekDates.flatMap(date => getTasksForDate(date).map(task => ({ task, date })));
 
     const sortedTasks = [...tasks].sort((a, b) => {
         if (a.completed !== b.completed) return a.completed ? 1 : -1;
         return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
     });
 
-    const activeTasks = getActiveTasks(); // NOWE
-
     const xpForNextLevel = calculateXpForLevel(character.level);
-    const xpPercent = (character.xp / xpForNextLevel) * 100;
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-slate-100 p-2 sm:p-4">
