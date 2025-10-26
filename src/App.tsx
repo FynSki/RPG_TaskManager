@@ -265,15 +265,6 @@ export default function App() {
     const today = new Date().toISOString().slice(0, 10);
     const tomorrow = new Date(new Date().setDate(new Date().getDate() + 1)).toISOString().slice(0, 10);
 
-    // NOWE: Helper do pobierania aktywnych zadań (dzisiaj, jutro, flexible)
-    function getActiveTasks() {
-        return tasks.filter(t => {
-            if (t.completed) return false;
-            if (t.isFlexible) return true;
-            if (t.dueDate === today || t.dueDate === tomorrow) return true;
-            return false;
-        });
-    }
 
     function openTaskModal(date?: string) {
         setEditingTask(null);
