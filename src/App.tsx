@@ -888,7 +888,13 @@ export default function App() {
                                                 return (
                                                     <div
                                                         key={task.id}
-                                                        className={`text-xs p-2 rounded border border-slate-700 ${isCompleted ? "bg-slate-800 opacity-60" : "bg-slate-900"
+                                                        onClick={(e) => {
+                                                            // Jeśli kliknięto checkbox, nie otwieraj modala
+                                                            if ((e.target as HTMLElement).tagName !== 'INPUT') {
+                                                                openEditModal(task);
+                                                            }
+                                                        }}
+                                                        className={`text-xs p-2 rounded border border-slate-700 cursor-pointer ${isCompleted ? "bg-slate-800 opacity-60" : "bg-slate-900 hover:bg-slate-800"
                                                             }`}
                                                     >
                                                         <div className="flex items-start gap-2">
@@ -965,7 +971,8 @@ export default function App() {
                                                 return (
                                                     <div
                                                         key={task.id}
-                                                        className={`text-xs truncate ${isCompleted ? "line-through text-slate-500" : "text-slate-300"
+                                                        onClick={() => openEditModal(task)}
+                                                        className={`text-xs truncate cursor-pointer hover:text-indigo-400 transition ${isCompleted ? "line-through text-slate-500" : "text-slate-300"
                                                             }`}
                                                     >
                                                         {task.name}
@@ -976,6 +983,14 @@ export default function App() {
                                                 <div className="text-xs text-slate-500">+{dayTasks.length - 2}</div>
                                             )}
                                         </div>
+
+                                        <button
+                                            onClick={() => openTaskModal(date)}
+                                            className="w-full mt-3 text-xs py-2 bg-slate-800 hover:bg-slate-700 rounded border border-slate-700"
+                                        >
+                                            + Add
+                                        </button>
+
                                         {dayTasks.length > 0 && (
                                             <div className="text-xs text-slate-400 mt-1">
                                                 {completedCount}/{dayTasks.length}
@@ -1165,7 +1180,11 @@ export default function App() {
                                         const skill = task.skillId ? skills.find(s => s.id === task.skillId) : null;
 
                                         return (
-                                            <div key={task.id} className="bg-slate-900 rounded-lg p-4 border border-slate-700">
+                                            <div key={task.id} onClick={(e) => {
+                                                if ((e.target as HTMLElement).tagName !== 'INPUT') {
+                                                    openEditModal(task);
+                                                }
+                                            }} className="bg-slate-900 rounded-lg p-4 border border-slate-700 cursor-pointer hover:border-slate-600 transition">
                                                 <div className="flex items-start gap-4">
                                                     <input
                                                         type="checkbox"
@@ -1253,7 +1272,11 @@ export default function App() {
                                         const skill = task.skillId ? skills.find(s => s.id === task.skillId) : null;
 
                                         return (
-                                            <div key={task.id} className="bg-slate-900 rounded-lg p-4 border border-teal-700">
+                                            <div key={task.id} onClick={(e) => {
+                                                if ((e.target as HTMLElement).tagName !== 'INPUT') {
+                                                    openEditModal(task);
+                                                }
+                                            }} className="bg-slate-900 rounded-lg p-4 border border-teal-700 cursor-pointer hover:border-teal-600 transition">
                                                 <div className="flex items-start gap-4">
                                                     <input
                                                         type="checkbox"
@@ -1344,7 +1367,7 @@ export default function App() {
                                         const skill = task.skillId ? skills.find(s => s.id === task.skillId) : null;
 
                                         return (
-                                            <div key={task.id} className="bg-slate-900 rounded-lg p-4 border border-slate-700 opacity-75">
+                                            <div key={task.id} onClick={() => openEditModal(task)} className="bg-slate-900 rounded-lg p-4 border border-slate-700 opacity-75 cursor-pointer hover:opacity-100 hover:border-slate-600 transition">
                                                 <div className="flex items-start gap-4">
                                                     <div className="mt-1 w-5 h-5 rounded border-2 border-slate-600" />
                                                     <div className="flex-1">
@@ -1509,6 +1532,74 @@ export default function App() {
                                 </div>
                             </div>
                         </div>
+
+                        <div className="bg-slate-900 rounded-lg p-4 border border-slate-700 mt-6">
+                            <h3 className="text-lg font-semibold mb-3">Skills Management</h3>
+                            <p className="text-sm text-slate-400 mb-4">
+                                Create custom skills to track your personal growth. Assign skills to tasks to level them up!
+                            </p>
+
+                            <div className="flex gap-3 mb-4">
+                                <input
+                                    type="text"
+                                    placeholder="Skill name (e.g. Cooking, Guitar)"
+                                    value={newSkillName}
+                                    onChange={(e) => setNewSkillName(e.target.value)}
+                                    className="flex-1 px-4 py-3 bg-slate-800 border border-slate-700 rounded-lg text-slate-100"
+                                />
+                                <button
+                                    onClick={addSkill}
+                                    className="bg-indigo-600 text-white px-6 py-3 rounded-lg hover:bg-indigo-700"
+                                >
+                                    Add Skill
+                                </button>
+                            </div>
+
+                            <div className="space-y-3">
+                                {skills.length > 0 ? (
+                                    skills.map(s => (
+                                        <div
+                                            key={s.id}
+                                            className="bg-slate-800 rounded-lg p-4 border border-slate-700"
+                                        >
+                                            <div className="flex items-center justify-between mb-3">
+                                                <div className="flex items-center gap-3">
+                                                    <div
+                                                        className="w-10 h-10 rounded-full flex items-center justify-center text-lg font-bold"
+                                                        style={{ background: s.color }}
+                                                    >
+                                                        {s.name[0]}
+                                                    </div>
+                                                    <div>
+                                                        <h4 className="font-semibold text-slate-100">{s.name}</h4>
+                                                        <p className="text-xs text-slate-400">Level {s.level}</p>
+                                                    </div>
+                                                </div>
+                                                <button
+                                                    onClick={() => deleteSkill(s.id)}
+                                                    className="text-rose-500 hover:text-rose-400"
+                                                >
+                                                    Delete
+                                                </button>
+                                            </div>
+                                            <div>
+                                                <p className="text-xs text-slate-400 mb-1">
+                                                    Progress to next level
+                                                </p>
+                                                <ProgressBar value={s.progress} max={s.level + 1} />
+                                                <p className="text-xs text-slate-400 mt-1">
+                                                    {s.progress}/{s.level + 1} tasks completed
+                                                </p>
+                                            </div>
+                                        </div>
+                                    ))
+                                ) : (
+                                    <p className="text-slate-400 text-sm">
+                                        No skills yet — add one to start tracking your personal growth.
+                                    </p>
+                                )}
+                            </div>
+                        </div>
                     </div>
                 )}
 
@@ -1528,74 +1619,6 @@ export default function App() {
                         </div>
 
                         <div className="space-y-6">
-                            <div className="bg-slate-900 rounded-lg p-4 border border-slate-700">
-                                <h3 className="text-lg font-semibold mb-3">Skills Management</h3>
-                                <p className="text-sm text-slate-400 mb-4">
-                                    Create custom skills to track your personal growth. Assign skills to tasks to level them up!
-                                </p>
-
-                                <div className="flex gap-3 mb-4">
-                                    <input
-                                        type="text"
-                                        placeholder="Skill name (e.g. Cooking, Guitar)"
-                                        value={newSkillName}
-                                        onChange={(e) => setNewSkillName(e.target.value)}
-                                        className="flex-1 px-4 py-3 bg-slate-800 border border-slate-700 rounded-lg text-slate-100"
-                                    />
-                                    <button
-                                        onClick={addSkill}
-                                        className="bg-indigo-600 text-white px-6 py-3 rounded-lg hover:bg-indigo-700"
-                                    >
-                                        Add Skill
-                                    </button>
-                                </div>
-
-                                <div className="space-y-3">
-                                    {skills.length > 0 ? (
-                                        skills.map(s => (
-                                            <div
-                                                key={s.id}
-                                                className="bg-slate-800 rounded-lg p-4 border border-slate-700"
-                                            >
-                                                <div className="flex items-center justify-between mb-3">
-                                                    <div className="flex items-center gap-3">
-                                                        <div
-                                                            className="w-10 h-10 rounded-full flex items-center justify-center text-lg font-bold"
-                                                            style={{ background: s.color }}
-                                                        >
-                                                            {s.name[0]}
-                                                        </div>
-                                                        <div>
-                                                            <h4 className="font-semibold text-slate-100">{s.name}</h4>
-                                                            <p className="text-xs text-slate-400">Level {s.level}</p>
-                                                        </div>
-                                                    </div>
-                                                    <button
-                                                        onClick={() => deleteSkill(s.id)}
-                                                        className="text-rose-500 hover:text-rose-400"
-                                                    >
-                                                        Delete
-                                                    </button>
-                                                </div>
-                                                <div>
-                                                    <p className="text-xs text-slate-400 mb-1">
-                                                        Progress to next level
-                                                    </p>
-                                                    <ProgressBar value={s.progress} max={s.level + 1} />
-                                                    <p className="text-xs text-slate-400 mt-1">
-                                                        {s.progress}/{s.level + 1} tasks completed
-                                                    </p>
-                                                </div>
-                                            </div>
-                                        ))
-                                    ) : (
-                                        <p className="text-slate-400 text-sm">
-                                            No skills yet — add one to start tracking your personal growth.
-                                        </p>
-                                    )}
-                                </div>
-                            </div>
-
                             <div className="bg-rose-900 rounded-xl p-6 border border-rose-700">
                                 <h3 className="text-xl font-semibold text-rose-100 mb-2">Danger Zone</h3>
                                 <p className="text-rose-200 text-sm mb-4">
