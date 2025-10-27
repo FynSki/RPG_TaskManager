@@ -204,7 +204,8 @@ function ProgressBar({ value, max }: { value: number; max: number }) {
    Main App
    ----------------------------- */
 export default function App() {
-    const [view, setView] = useState<"daily" | "weekly" | "monthly" | "all" | "projects" | "character" | "settings" | "activeTasks">("daily");
+    //const [view, setView] = useState<"daily" | "weekly" | "monthly" | "all" | "projects" | "character" | "settings" | "activeTasks">("character");
+    const [view, setView] = useState<"character" | "activeTasks" | "daily" | "weekly" | "monthly" | "all" | "projects" | "settings">("character");
     const [tasks, setTasks] = usePersistedState<Task[]>("tasks", []);
     const [projects, setProjects] = usePersistedState<Project[]>("projects", []);
     const [taskClasses, setTaskClasses] = usePersistedState<TaskClass[]>("taskClasses", []);
@@ -643,13 +644,13 @@ export default function App() {
                     {showMobileMenu && (
                         <div className="lg:hidden border-t border-slate-700 p-2 space-y-1">
                             {[
+                                { id: "character", label: "Character", icon: "⚔️" },
+                                { id: "activeTasks", label: "Active Tasks", icon: "🔥" },
                                 { id: "daily", label: "Daily", icon: "📅" },
                                 { id: "weekly", label: "Weekly", icon: "📊" },
                                 { id: "monthly", label: "Monthly", icon: "📆" },
                                 { id: "all", label: "All", icon: "📋" },
                                 { id: "projects", label: "Projects", icon: "🎯" },
-                                { id: "character", label: "Character", icon: "⚔️" },
-                                { id: "activeTasks", label: "Active Tasks", icon: "🔥" },
                                 { id: "settings", label: "Settings", icon: "⚙️" },
                             ].map(item => (
                                 <button
@@ -674,13 +675,13 @@ export default function App() {
                     <div className="hidden lg:block p-2 overflow-x-auto">
                         <div className="flex gap-2">
                             {[
+                                { id: "character", label: "Character", icon: "⚔️" },
+                                { id: "activeTasks", label: "Active Tasks", icon: "🔥" },
                                 { id: "daily", label: "Daily", icon: "📅" },
                                 { id: "weekly", label: "Weekly", icon: "📊" },
                                 { id: "monthly", label: "Monthly", icon: "📆" },
                                 { id: "all", label: "All", icon: "📋" },
                                 { id: "projects", label: "Projects", icon: "🎯" },
-                                { id: "character", label: "Character", icon: "⚔️" },
-                                { id: "activeTasks", label: "Active Tasks", icon: "🔥" },
                                 { id: "settings", label: "Settings", icon: "⚙️" },
                             ].map(item => (
                                 <button
