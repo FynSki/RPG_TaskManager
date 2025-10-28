@@ -269,6 +269,43 @@ export default function App() {
     const today = new Date().toISOString().slice(0, 10);
     const tomorrow = new Date(new Date().setDate(new Date().getDate() + 1)).toISOString().slice(0, 10);
 
+    // Funkcje nawigacji dla Weekly
+    function goToPreviousWeek() {
+        const date = new Date(selectedDate);
+        date.setDate(date.getDate() - 7);
+        setSelectedDate(date.toISOString().slice(0, 10));
+    }
+
+    function goToNextWeek() {
+        const date = new Date(selectedDate);
+        date.setDate(date.getDate() + 7);
+        setSelectedDate(date.toISOString().slice(0, 10));
+    }
+
+    // Funkcje nawigacji dla Monthly
+    function goToPreviousMonth() {
+        const [year, month] = selectedMonth.split("-").map(Number);
+        const date = new Date(year, month - 2, 1); // month-2 bo miesiące są 0-indexed
+        setSelectedMonth(date.toISOString().slice(0, 7));
+    }
+
+    function goToNextMonth() {
+        const [year, month] = selectedMonth.split("-").map(Number);
+        const date = new Date(year, month, 1); // month bo miesiące są 0-indexed
+        setSelectedMonth(date.toISOString().slice(0, 7));
+    }
+
+    // State dla modalów z opisami statystyk
+    const [showStatInfo, setShowStatInfo] = useState<string | null>(null);
+
+    const statDescriptions = {
+        strength: "Strength represents physical power and toughness. Complete tasks related to physical activities, workouts, or demanding physical work to level up.",
+        endurance: "Endurance shows your stamina and persistence. Tasks requiring long-term effort, consistency, or physical stamina will improve this stat.",
+        intelligence: "Intelligence reflects mental capacity and learning. Complete tasks involving study, problem-solving, research, or creative thinking to grow.",
+        agility: "Agility represents speed, reflexes, and adaptability. Quick tasks, time-sensitive challenges, or activities requiring coordination boost this stat.",
+        charisma: "Charisma shows your social skills and influence. Tasks involving communication, networking, presentations, or helping others will enhance this stat."
+    };
+
     // NOWE: Helper do pobierania aktywnych zadań (dzisiaj, jutro, flexible)
 
 
@@ -866,12 +903,26 @@ export default function App() {
                         <div className="flex justify-between items-center mb-6">
                             <h2 className="text-2xl font-semibold">Weekly Quests</h2>
                             <div className="flex items-center gap-3">
+                                <button
+                                    onClick={goToPreviousWeek}
+                                    className="px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-slate-100 hover:bg-slate-700 transition"
+                                    title="Previous week"
+                                >
+                                    ←
+                                </button>
                                 <input
                                     type="date"
                                     value={selectedDate}
                                     onChange={(e) => setSelectedDate(e.target.value)}
                                     className="px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-slate-100"
                                 />
+                                <button
+                                    onClick={goToNextWeek}
+                                    className="px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-slate-100 hover:bg-slate-700 transition"
+                                    title="Next week"
+                                >
+                                    →
+                                </button>
                             </div>
                         </div>
 
@@ -948,12 +999,28 @@ export default function App() {
                     <div className="bg-slate-800 rounded-xl shadow p-4 sm:p-6 border border-slate-700 max-w-7xl mx-auto">
                         <div className="flex justify-between items-center mb-6">
                             <h2 className="text-2xl font-semibold">Monthly Quests</h2>
-                            <input
-                                type="month"
-                                value={selectedMonth}
-                                onChange={(e) => setSelectedMonth(e.target.value)}
-                                className="px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-slate-100"
-                            />
+                            <div className="flex items-center gap-3">
+                                <button
+                                    onClick={goToPreviousMonth}
+                                    className="px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-slate-100 hover:bg-slate-700 transition"
+                                    title="Previous month"
+                                >
+                                    ←
+                                </button>
+                                <input
+                                    type="month"
+                                    value={selectedMonth}
+                                    onChange={(e) => setSelectedMonth(e.target.value)}
+                                    className="px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-slate-100"
+                                />
+                                <button
+                                    onClick={goToNextMonth}
+                                    className="px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-slate-100 hover:bg-slate-700 transition"
+                                    title="Next month"
+                                >
+                                    →
+                                </button>
+                            </div>
                         </div>
 
                         <div className="mb-4">
@@ -1180,7 +1247,7 @@ export default function App() {
                         <div className="flex justify-between items-center mb-6">
                             <div>
                                 <h2 className="text-2xl font-semibold">🔥 Active Tasks</h2>
-                                <p className="text-sm text-slate-400 mt-1">Today's tasks, flexible tasks, and tomorrow's planning</p>
+                                <p className="text-sm text-slate-400 mt-1">Today's tasks, recurring tasks, flexible tasks, and tomorrow's planning</p>
                             </div>
                             <button
                                 onClick={() => openTaskModal()}
@@ -1190,14 +1257,14 @@ export default function App() {
                             </button>
                         </div>
 
-                        {/* Dzisiejsze zadania */}
+                        {/* Dzisiejsze zadania - BEZ zadań powtarzalnych które są aktywne cały czas */}
                         <div className="mb-6">
                             <h3 className="text-lg font-semibold mb-3 text-indigo-400">📅 Today ({formatShortDate(today)})</h3>
                             <div className="space-y-3">
-                                {tasks.filter(t => !t.completed && t.dueDate === today).length === 0 ? (
+                                {tasks.filter(t => !t.completed && t.dueDate === today && !t.isRecurring).length === 0 ? (
                                     <p className="text-slate-400 text-sm">No tasks for today</p>
                                 ) : (
-                                    tasks.filter(t => !t.completed && t.dueDate === today).map(task => {
+                                    tasks.filter(t => !t.completed && t.dueDate === today && !t.isRecurring).map(task => {
                                         const project = task.projectId ? projects.find(p => p.id === task.projectId) : null;
                                         const taskClass = task.classId ? taskClasses.find(c => c.id === task.classId) : null;
                                         const skill = task.skillId ? skills.find(s => s.id === task.skillId) : null;
@@ -1223,6 +1290,103 @@ export default function App() {
                                                         <div className="flex flex-wrap gap-2 mt-3">
                                                             <span className="text-xs px-3 py-1 rounded-full bg-indigo-900 text-indigo-300 border border-indigo-700">
                                                                 {task.xpReward} XP
+                                                            </span>
+                                                            {task.priority && (
+                                                                <span
+                                                                    className={`text-xs px-3 py-1 rounded-full ${task.priority === "high"
+                                                                        ? "bg-rose-900 text-rose-300 border border-rose-700"
+                                                                        : task.priority === "medium"
+                                                                            ? "bg-amber-900 text-amber-300 border border-amber-700"
+                                                                            : "bg-slate-700 text-slate-300 border border-slate-600"
+                                                                        }`}
+                                                                >
+                                                                    {task.priority}
+                                                                </span>
+                                                            )}
+                                                            {project && (
+                                                                <span
+                                                                    className="text-xs px-3 py-1 rounded-full border"
+                                                                    style={{
+                                                                        borderColor: project.color,
+                                                                        color: project.color,
+                                                                        backgroundColor: `${project.color}20`,
+                                                                    }}
+                                                                >
+                                                                    {project.name}
+                                                                </span>
+                                                            )}
+                                                            {taskClass && (
+                                                                <span
+                                                                    className="text-xs px-3 py-1 rounded-full border"
+                                                                    style={{
+                                                                        borderColor: taskClass.color,
+                                                                        color: taskClass.color,
+                                                                        backgroundColor: `${taskClass.color}20`,
+                                                                    }}
+                                                                >
+                                                                    {taskClass.name}
+                                                                </span>
+                                                            )}
+                                                            {skill && (
+                                                                <span
+                                                                    className="text-xs px-3 py-1 rounded-full border"
+                                                                    style={{
+                                                                        borderColor: skill.color,
+                                                                        color: skill.color,
+                                                                        backgroundColor: `${skill.color}20`,
+                                                                    }}
+                                                                >
+                                                                    {skill.name}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })
+                                )}
+                            </div>
+                        </div>
+
+                        {/* NOWE: Zadania powtarzalne - aktywne cały czas (bez końca lub jeszcze nieukończone) */}
+                        <div className="mb-6">
+                            <h3 className="text-lg font-semibold mb-3 text-purple-400">🔄 Recurring Tasks</h3>
+                            <div className="space-y-3">
+                                {tasks.filter(t => t.isRecurring && (!t.recurringEndDate || t.recurringEndDate >= today)).length === 0 ? (
+                                    <p className="text-slate-400 text-sm">No active recurring tasks</p>
+                                ) : (
+                                    tasks.filter(t => t.isRecurring && (!t.recurringEndDate || t.recurringEndDate >= today)).map(task => {
+                                        const project = task.projectId ? projects.find(p => p.id === task.projectId) : null;
+                                        const taskClass = task.classId ? taskClasses.find(c => c.id === task.classId) : null;
+                                        const skill = task.skillId ? skills.find(s => s.id === task.skillId) : null;
+                                        const isCompletedToday = isTaskCompletedOnDate(task, today);
+
+                                        return (
+                                            <div key={task.id} onClick={(e) => {
+                                                if ((e.target as HTMLElement).tagName !== 'INPUT') {
+                                                    openEditModal(task);
+                                                }
+                                            }} className={`bg-slate-900 rounded-lg p-4 border cursor-pointer transition ${isCompletedToday ? 'border-purple-700 opacity-60' : 'border-purple-700 hover:border-purple-600'}`}>
+                                                <div className="flex items-start gap-4">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={isCompletedToday}
+                                                        onChange={() => toggleTask(task.id, today)}
+                                                        className="mt-1 w-5 h-5 rounded border-slate-600 text-purple-600 focus:ring-purple-500"
+                                                    />
+                                                    <div className="flex-1">
+                                                        <h3 className={`text-lg font-semibold ${isCompletedToday ? 'line-through text-slate-500' : ''}`}>{task.name}</h3>
+                                                        {task.description && (
+                                                            <p className="text-sm text-slate-400 mt-1">{task.description}</p>
+                                                        )}
+                                                        <div className="flex flex-wrap gap-2 mt-3">
+                                                            <span className="text-xs px-3 py-1 rounded-full bg-indigo-900 text-indigo-300 border border-indigo-700">
+                                                                {task.xpReward} XP
+                                                            </span>
+                                                            <span className="text-xs px-3 py-1 rounded-full bg-purple-900 text-purple-300 border border-purple-700">
+                                                                🔄 {task.recurringType}
+                                                                {task.recurringEndDate && ` (until ${formatShortDate(task.recurringEndDate)})`}
                                                             </span>
                                                             {task.priority && (
                                                                 <span
@@ -1377,14 +1541,14 @@ export default function App() {
                             </div>
                         </div>
 
-                        {/* Jutrzejsze zadania */}
+                        {/* Jutrzejsze zadania - BEZ zadań powtarzalnych */}
                         <div>
                             <h3 className="text-lg font-semibold mb-3 text-purple-400">🌅 Tomorrow ({formatShortDate(tomorrow)})</h3>
                             <div className="space-y-3">
-                                {tasks.filter(t => !t.completed && t.dueDate === tomorrow).length === 0 ? (
+                                {tasks.filter(t => !t.completed && t.dueDate === tomorrow && !t.isRecurring).length === 0 ? (
                                     <p className="text-slate-400 text-sm">No tasks scheduled for tomorrow</p>
                                 ) : (
-                                    tasks.filter(t => !t.completed && t.dueDate === tomorrow).map(task => {
+                                    tasks.filter(t => !t.completed && t.dueDate === tomorrow && !t.isRecurring).map(task => {
                                         const project = task.projectId ? projects.find(p => p.id === task.projectId) : null;
                                         const taskClass = task.classId ? taskClasses.find(c => c.id === task.classId) : null;
                                         const skill = task.skillId ? skills.find(s => s.id === task.skillId) : null;
@@ -1540,9 +1704,18 @@ export default function App() {
                                         return (
                                             <div key={stat.key}>
                                                 <div className="flex justify-between items-center mb-2">
-                                                    <span className="text-xs sm:text-sm">
-                                                        {stat.icon} {stat.name}
-                                                    </span>
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="text-xs sm:text-sm">
+                                                            {stat.icon} {stat.name}
+                                                        </span>
+                                                        <button
+                                                            onClick={() => setShowStatInfo(stat.key)}
+                                                            className="w-5 h-5 rounded-full bg-slate-800 border border-slate-600 hover:border-indigo-500 transition flex items-center justify-center text-xs"
+                                                            title="Info"
+                                                        >
+                                                            ℹ️
+                                                        </button>
+                                                    </div>
                                                     <span className="text-base sm:text-lg font-bold text-indigo-400">{value}</span>
                                                 </div>
                                                 <ProgressBar value={progress} max={value + 1} />
@@ -2124,6 +2297,39 @@ export default function App() {
                                     Close
                                 </button>
                             </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* NOWE: Modal z opisem statystyk */}
+                {showStatInfo && (
+                    <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 p-4">
+                        <div className="bg-slate-800 rounded-xl p-6 max-w-md w-full border border-slate-700">
+                            <div className="flex justify-between items-start mb-4">
+                                <h3 className="text-xl font-semibold capitalize">
+                                    {showStatInfo === "strength" && "💪"}
+                                    {showStatInfo === "endurance" && "🏃"}
+                                    {showStatInfo === "intelligence" && "🧠"}
+                                    {showStatInfo === "agility" && "⚡"}
+                                    {showStatInfo === "charisma" && "✨"}
+                                    {" "}{showStatInfo}
+                                </h3>
+                                <button
+                                    onClick={() => setShowStatInfo(null)}
+                                    className="text-slate-400 hover:text-slate-200 text-2xl"
+                                >
+                                    ✕
+                                </button>
+                            </div>
+                            <p className="text-slate-300 text-sm leading-relaxed">
+                                {statDescriptions[showStatInfo as keyof typeof statDescriptions]}
+                            </p>
+                            <button
+                                onClick={() => setShowStatInfo(null)}
+                                className="w-full mt-6 bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-lg transition"
+                            >
+                                Got it!
+                            </button>
                         </div>
                     </div>
                 )}
