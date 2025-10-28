@@ -293,13 +293,8 @@ export default function App() {
         return tasks.filter(t => !t.completed && t.dueDate === tomorrow && !t.isRecurring);
     }
 
-    function getActiveRecurringTasksList(): Task[] {
-        return getActiveRecurringTasks(tasks);
-    }
 
-    function isTaskCompleted(task: Task, date: string): boolean {
-        return isTaskCompletedOnDate(task, date, recurringCompletions);
-    }
+
     function handleAwardXP(xp: number, task: Task) {
         const result = awardXPUtil(character, xp, task, taskClasses, skills);
         setCharacter(result.character);
@@ -365,23 +360,6 @@ export default function App() {
         setTasks(tasks.map(t => (t.skillId === skillId ? { ...t, skillId: null } : t)));
     }
 
-    // ========== CHARACTER FUNCTIONS ==========
-
-    function spendPoint(stat: StatType) {
-        if (character.unspentPoints <= 0) return;
-        const newChar = { ...character };
-        newChar.unspentPoints--;
-        newChar[stat] = (newChar[stat] as number) + 1;
-        setCharacter(newChar);
-    }
-
-    function changeAvatar(avatar: string) {
-        setCharacter({ ...character, avatar });
-    }
-
-    function changeName(name: string) {
-        setCharacter({ ...character, name });
-    }
 
     // ========== RESET FUNCTION ==========
 
@@ -395,24 +373,7 @@ export default function App() {
         setShowResetConfirm(false);
     }
 
-    // Funkcje dla flexible tasks
-    function getFlexibleTasks(): Task[] {
-        return tasks.filter(t => !t.completed && t.isFlexible);
-    }
-
-    function getTodayTasks(): Task[] {
-        return tasks.filter(t => !t.completed && t.dueDate === today && !t.isRecurring);
-    }
-
-    function getTomorrowTasks(): Task[] {
-        return tasks.filter(t => !t.completed && t.dueDate === tomorrow && !t.isRecurring);
-    }
-
-    function getActiveRecurringTasksList(): Task[] {
-        return tasks.filter(
-            t => t.isRecurring && (!t.recurringEndDate || t.recurringEndDate >= today)
-        );
-    }
+    
 
     // ========== RENDER ==========
     // Note: The JSX render logic continues in the next part...
@@ -2126,7 +2087,7 @@ export default function App() {
                                 </button>
                             </div>
                             <p className="text-slate-300 text-sm leading-relaxed">
-                                {statDescriptions[showStatInfo as keyof typeof statDescriptions]}
+                                {STAT_DESCRIPTIONS[showStatInfo as keyof typeof statDescriptions]}
                             </p>
                             <button
                                 onClick={() => setShowStatInfo(null)}
