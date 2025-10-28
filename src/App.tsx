@@ -44,6 +44,7 @@ type Task = {
     isRecurring?: boolean;
     recurringType?: "daily" | "weekly" | "monthly";
     recurringDay?: number;
+    recurringEndDate?: string; // NOWE: data zakończenia serii zadań powtarzalnych
     statType?: "strength" | "endurance" | "intelligence" | "agility" | "charisma" | null;
     classId?: string | null;
     skillId?: string | null;
@@ -252,6 +253,7 @@ export default function App() {
     const [taskIsRecurring, setTaskIsRecurring] = useState(false);
     const [taskRecurringType, setTaskRecurringType] = useState<"daily" | "weekly" | "monthly">("daily");
     const [taskRecurringDay, setTaskRecurringDay] = useState<number>(1);
+    const [taskRecurringEndDate, setTaskRecurringEndDate] = useState<string>(""); // NOWE: data zakończenia zadania powtarzalnego
     const [taskClassId, setTaskClassId] = useState<string>("");
     const [taskSkillId, setTaskSkillId] = useState<string>("");
     const [taskIsFlexible, setTaskIsFlexible] = useState(false); // NOWE: checkbox dla flexible task
@@ -281,6 +283,7 @@ export default function App() {
         setTaskIsRecurring(false);
         setTaskRecurringType("daily");
         setTaskRecurringDay(1);
+        setTaskRecurringEndDate(""); // NOWE: reset end date
         setTaskClassId("");
         setTaskSkillId("");
         setTaskIsFlexible(false); // NOWE: reset flexible
@@ -298,6 +301,7 @@ export default function App() {
         setTaskIsRecurring(task.isRecurring || false);
         setTaskRecurringType(task.recurringType || "daily");
         setTaskRecurringDay(task.recurringDay || 1);
+        setTaskRecurringEndDate(task.recurringEndDate || ""); // NOWE
         setTaskClassId(task.classId || "");
         setTaskSkillId(task.skillId || "");
         setTaskIsFlexible(task.isFlexible || false); // NOWE
@@ -333,6 +337,7 @@ export default function App() {
             isRecurring: taskIsRecurring,
             recurringType: taskIsRecurring ? taskRecurringType : undefined,
             recurringDay: taskIsRecurring && taskRecurringType !== "daily" ? taskRecurringDay : undefined,
+            recurringEndDate: taskIsRecurring && taskRecurringEndDate ? taskRecurringEndDate : undefined, // NOWE
             classId: taskClassId || null,
             skillId: taskSkillId || null,
             isFlexible: taskIsFlexible, // NOWE
@@ -520,16 +525,28 @@ export default function App() {
     }
 
     function getTasksForDate(date: string) {
+        const today = new Date().toISOString().slice(0, 10);
+
         return tasks.filter(t => {
             if (t.isRecurring) {
+                // Zadania powtarzalne nie pojawiają się w przeszłości (przed dzisiejszym dniem)
+                if (date < today) return false;
+
+                // Sprawdź czy zadanie nie przekroczyło daty zakończenia (jeśli ustawiona)
+                if (t.recurringEndDate && date > t.recurringEndDate) return false;
+
+                // Sprawdź czy zadanie nie jest z przeszłości (data utworzenia lub due date)
+                const taskStartDate = t.dueDate || t.createdAt.slice(0, 10);
+                if (date < taskStartDate) return false;
+
                 if (t.recurringType === "daily") return true;
                 if (t.recurringType === "weekly") {
-                    const taskDay = new Date(t.dueDate).getDay();
+                    const taskDay = new Date(taskStartDate).getDay();
                     const targetDay = new Date(date).getDay();
                     return taskDay === targetDay;
                 }
                 if (t.recurringType === "monthly") {
-                    const taskDate = new Date(t.dueDate).getDate();
+                    const taskDate = new Date(taskStartDate).getDate();
                     const targetDate = new Date(date).getDate();
                     return taskDate === targetDate;
                 }
@@ -1936,6 +1953,19 @@ export default function App() {
                                                 />
                                             </div>
                                         )}
+
+                                        <div className="sm:col-span-2">
+                                            <label className="block text-sm font-medium mb-2">
+                                                End Date (Optional) - Leave empty for infinite recurring
+                                            </label>
+                                            <input
+                                                type="date"
+                                                value={taskRecurringEndDate}
+                                                onChange={(e) => setTaskRecurringEndDate(e.target.value)}
+                                                className="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-lg text-slate-100"
+                                                min={taskDueDate || today}
+                                            />
+                                        </div>
                                     </div>
                                 )}
                             </div>
@@ -2080,6 +2110,7 @@ export default function App() {
                                         <label className="block text-sm font-medium text-slate-400 mb-2">Recurring</label>
                                         <span className="inline-block px-4 py-2 rounded-lg text-sm font-medium bg-purple-900 text-purple-300 border border-purple-700">
                                             🔄 {viewingTask.recurringType}
+                                            {viewingTask.recurringEndDate && ` (ends: ${formatShortDate(viewingTask.recurringEndDate)})`}
                                         </span>
                                     </div>
                                 )}
