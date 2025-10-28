@@ -1,194 +1,66 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 /**
- * Professional-styled Task Quest app (updated)
- * - Full app: daily/weekly/monthly/all/projects/settings
- * - Stats: strength / dexterity / intelligence with n+1 progression
- * - Task class mapping to stats
- * - Skills system (user-created skills, assignable to tasks, progress/levels)
- * - NEW: Completed task preview in All view
- * - NEW: Flexible tasks (no due date)
- * - NEW: Active Tasks view
- * - NEW: Info popup in Settings
- * - Persistence: localStorage
+ * TaskQuest - Gamified Task Management Application
+ * 
+ * A professional RPG-style task manager with:
+ * - Character progression with 5 stats
+ * - Daily, weekly, and monthly task views
+ * - Recurring tasks with end dates
+ * - Flexible tasks without deadlines
+ * - Projects, task classes, and custom skills
+ * - Active tasks overview
+ * 
+ * REFACTORED: Now uses modular utilities and types
  */
 
-/* -----------------------------
-   Types
-   ----------------------------- */
-type Project = {
-    id: string;
-    name: string;
-    color: string;
-    description: string;
-};
+// ==================== IMPORTS ====================
 
-type SubTask = {
-    id: string;
-    name: string;
-    completed: boolean;
-};
+// Types
+import type {
+    Task,
+    Character,
+    Project,
+    TaskClass,
+    Skill,
+    RecurringTaskCompletion,
+    ViewType,
+    StatType
+} from './refactored-src/types/index';
 
-type Task = {
-    id: string;
-    projectId: string | null;
-    name: string;
-    description: string;
-    completed: boolean;
-    xpReward: number;
-    priority: "low" | "medium" | "high";
-    dueDate: string; // może być pusty string dla flexible tasks
-    subtasks: SubTask[];
-    createdAt: string;
-    completedAt?: string; // NOWE: data zakończenia zadania
-    isRecurring?: boolean;
-    recurringType?: "daily" | "weekly" | "monthly";
-    recurringDay?: number;
-    recurringEndDate?: string; // NOWE: data zakończenia serii zadań powtarzalnych
-    statType?: "strength" | "endurance" | "intelligence" | "agility" | "charisma" | null;
-    classId?: string | null;
-    skillId?: string | null;
-    isFlexible?: boolean; // NOWE: zadania bez due date
-};
+import {
+    AVATARS,
+    STAT_DESCRIPTIONS,
+    STAT_CONFIG,
+    DEFAULT_CHARACTER
+} from './refactored-src/constants/index';
 
-type Character = {
-    name: string;
-    level: number;
-    xp: number;
-    totalXp: number;
-    avatar: string;
-    strength: number;
-    strengthProgress: number;
-    endurance: number;
-    enduranceProgress: number;
-    intelligence: number;
-    intelligenceProgress: number;
-    agility: number;
-    agilityProgress: number;
-    charisma: number;
-    charismaProgress: number;
-    unspentPoints: number;
-};
+import {
+    getWeekDates,
+    getMonthDates,
+    getDayName,
+    formatShortDate,
+    formatFullDateTime,
+    getToday,
+    getTomorrow,
+    addDays,
+    addMonths,
 
-type RecurringTaskCompletion = {
-    taskId: string;
-    date: string;
-    completed: boolean;
-};
+    getTasksForDate,
+    isTaskCompletedOnDate,
+    getActiveRecurringTasks,
+    sortTasks,
+    generateRandomColor,
+    toggleRecurringTaskCompletion,
 
-type TaskClass = {
-    id: string;
-    name: string;
-    statType: "strength" | "endurance" | "intelligence" | "agility" | "charisma";
-    color?: string;
-};
+    calculateXpForLevel,
+    awardXP as awardXPUtil,
 
-type Skill = {
-    id: string;
-    name: string;
-    level: number;
-    progress: number;
-    color?: string;
-};
+    usePersistedState
+} from './refactored-src/utils/index';
 
-/* -----------------------------
-   Constants & helpers
-   ----------------------------- */
+// ==================== UTILITY COMPONENTS ====================
 
-const AVATARS = ["⚔️", "🛡️", "🏹", "📚", "🧙", "🧠", "🧘"];
-
-function usePersistedState<T>(key: string, defaultValue: T) {
-    const [state, setState] = useState<T>(() => {
-        try {
-            const stored = localStorage.getItem(key);
-            return stored ? JSON.parse(stored) : defaultValue;
-        } catch {
-            return defaultValue;
-        }
-    });
-
-    useEffect(() => {
-        try {
-            localStorage.setItem(key, JSON.stringify(state));
-        } catch {
-            // ignore
-        }
-    }, [key, state]);
-
-    return [state, setState] as const;
-}
-
-function calculateXpForLevel(level: number): number {
-    return Math.floor(250 * level * (level + 1));
-}
-
-function getWeekDates(dateStr: string): string[] {
-    const date = new Date(dateStr);
-    const day = date.getDay();
-    const diff = date.getDate() - day + (day === 0 ? -6 : 1);
-    const monday = new Date(date.setDate(diff));
-
-    const dates: string[] = [];
-    for (let i = 0; i < 7; i++) {
-        const currentDate = new Date(monday);
-        currentDate.setDate(monday.getDate() + i);
-        dates.push(currentDate.toISOString().slice(0, 10));
-    }
-    return dates;
-}
-
-function getMonthDates(dateStr: string): string[] {
-    const [year, month] = dateStr.split("-").map(Number);
-    const firstDay = new Date(year, month - 1, 1);
-    const lastDay = new Date(year, month, 0);
-
-    const firstDayOfWeek = firstDay.getDay();
-    const adjustedFirstDay = firstDayOfWeek === 0 ? 6 : firstDayOfWeek - 1;
-
-    const dates: string[] = [];
-
-    for (let i = 0; i < adjustedFirstDay; i++) {
-        dates.push("");
-    }
-
-    for (let d = 1; d <= lastDay.getDate(); d++) {
-        const monthStr = month.toString().padStart(2, "0");
-        const dayStr = d.toString().padStart(2, "0");
-        dates.push(`${year}-${monthStr}-${dayStr}`);
-    }
-
-    return dates;
-}
-
-function getDayName(dateStr: string): string {
-    const date = new Date(dateStr);
-    const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-    return days[date.getDay()];
-}
-
-// NOWA FUNKCJA: Formatowanie daty do DD.MM
-function formatShortDate(dateStr: string): string {
-    if (!dateStr) return "";
-    const [, month, day] = dateStr.split("-");
-    return `${day}.${month}`;
-}
-
-// NOWA FUNKCJA: Formatowanie pełnej daty z godziną
-function formatFullDateTime(dateStr: string): string {
-    if (!dateStr) return "";
-    const date = new Date(dateStr);
-    return date.toLocaleString('pl-PL', {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-    });
-}
-
-/* -----------------------------
-   Utility Components
-   ----------------------------- */
 function ProgressBar({ value, max }: { value: number; max: number }) {
     const pct = (value / max) * 100;
     return (
@@ -201,49 +73,40 @@ function ProgressBar({ value, max }: { value: number; max: number }) {
     );
 }
 
-/* -----------------------------
-   Main App
-   ----------------------------- */
+// ==================== MAIN COMPONENT ====================
+
 export default function App() {
-    //const [view, setView] = useState<"daily" | "weekly" | "monthly" | "all" | "projects" | "character" | "settings" | "activeTasks">("character");
-    const [view, setView] = useState<"character" | "activeTasks" | "daily" | "weekly" | "monthly" | "all" | "projects" | "settings">("character");
+    // ========== STATE ==========
+
+    // View state
+    const [view, setView] = useState<ViewType>("character");
+
+    // Data state (persisted to localStorage)
     const [tasks, setTasks] = usePersistedState<Task[]>("tasks", []);
     const [projects, setProjects] = usePersistedState<Project[]>("projects", []);
     const [taskClasses, setTaskClasses] = usePersistedState<TaskClass[]>("taskClasses", []);
     const [skills, setSkills] = usePersistedState<Skill[]>("skills", []);
+    const [character, setCharacter] = usePersistedState<Character>("character", DEFAULT_CHARACTER);
+    const [recurringCompletions, setRecurringCompletions] = usePersistedState<RecurringTaskCompletion[]>(
+        "recurringCompletions",
+        []
+    );
 
-    const [character, setCharacter] = usePersistedState<Character>("character", {
-        name: "Adventurer",
-        level: 1,
-        xp: 0,
-        totalXp: 0,
-        avatar: "⚔️",
-        strength: 1,
-        strengthProgress: 0,
-        endurance: 1,
-        enduranceProgress: 0,
-        intelligence: 1,
-        intelligenceProgress: 0,
-        agility: 1,
-        agilityProgress: 0,
-        charisma: 1,
-        charismaProgress: 0,
-        unspentPoints: 0,
-    });
-
-    const [recurringCompletions, setRecurringCompletions] = usePersistedState<RecurringTaskCompletion[]>("recurringCompletions", []);
-
-    const [selectedDate, setSelectedDate] = useState(new Date().toISOString().slice(0, 10));
+    // Date selection state
+    const [selectedDate, setSelectedDate] = useState(getToday());
     const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7));
 
+    // Modal state
     const [showTaskModal, setShowTaskModal] = useState(false);
-    const [showCompletedTaskModal, setShowCompletedTaskModal] = useState(false); // NOWE: modal dla podglądu
-    const [viewingTask, setViewingTask] = useState<Task | null>(null); // NOWE: zadanie do podglądu
+    const [showCompletedTaskModal, setShowCompletedTaskModal] = useState(false);
+    const [viewingTask, setViewingTask] = useState<Task | null>(null);
     const [editingTask, setEditingTask] = useState<Task | null>(null);
     const [showResetConfirm, setShowResetConfirm] = useState(false);
-    const [showInfoPopup, setShowInfoPopup] = useState(false); // NOWE: popup z informacjami
-    const [showMobileMenu, setShowMobileMenu] = useState(false); // NOWE: mobile menu
+    const [showInfoPopup, setShowInfoPopup] = useState(false);
+    const [showMobileMenu, setShowMobileMenu] = useState(false);
+    const [showStatInfo, setShowStatInfo] = useState<string | null>(null);
 
+    // Task form state
     const [taskName, setTaskName] = useState("");
     const [taskDescription, setTaskDescription] = useState("");
     const [taskPriority, setTaskPriority] = useState<"low" | "medium" | "high">("medium");
@@ -253,61 +116,51 @@ export default function App() {
     const [taskIsRecurring, setTaskIsRecurring] = useState(false);
     const [taskRecurringType, setTaskRecurringType] = useState<"daily" | "weekly" | "monthly">("daily");
     const [taskRecurringDay, setTaskRecurringDay] = useState<number>(1);
-    const [taskRecurringEndDate, setTaskRecurringEndDate] = useState<string>(""); // NOWE: data zakończenia zadania powtarzalnego
+    const [taskRecurringEndDate, setTaskRecurringEndDate] = useState<string>("");
     const [taskClassId, setTaskClassId] = useState<string>("");
     const [taskSkillId, setTaskSkillId] = useState<string>("");
-    const [taskIsFlexible, setTaskIsFlexible] = useState(false); // NOWE: checkbox dla flexible task
+    const [taskIsFlexible, setTaskIsFlexible] = useState(false);
 
+    // Project form state
     const [newProjectName, setNewProjectName] = useState("");
     const [newProjectDesc, setNewProjectDesc] = useState("");
 
+    // Task class form state
     const [newClassName, setNewClassName] = useState("");
-    const [newClassStat, setNewClassStat] = useState<"strength" | "endurance" | "intelligence" | "agility" | "charisma">("strength");
+    const [newClassStat, setNewClassStat] = useState<StatType>("strength");
 
+    // Skill form state
     const [newSkillName, setNewSkillName] = useState("");
 
-    const today = new Date().toISOString().slice(0, 10);
-    const tomorrow = new Date(new Date().setDate(new Date().getDate() + 1)).toISOString().slice(0, 10);
+    // ========== COMPUTED VALUES ==========
 
-    // Funkcje nawigacji dla Weekly
+    const today = getToday();
+    const tomorrow = getTomorrow();
+    const weekDates = getWeekDates(selectedDate);
+    const monthDates = getMonthDates(selectedMonth);
+    const dailyTasks = getTasksForDate(tasks, selectedDate);
+    const sortedTasks = sortTasks(tasks);
+    const xpForNextLevel = calculateXpForLevel(character.level);
+
+    // ========== NAVIGATION FUNCTIONS ==========
+
     function goToPreviousWeek() {
-        const date = new Date(selectedDate);
-        date.setDate(date.getDate() - 7);
-        setSelectedDate(date.toISOString().slice(0, 10));
+        setSelectedDate(addDays(selectedDate, -7));
     }
 
     function goToNextWeek() {
-        const date = new Date(selectedDate);
-        date.setDate(date.getDate() + 7);
-        setSelectedDate(date.toISOString().slice(0, 10));
+        setSelectedDate(addDays(selectedDate, 7));
     }
 
-    // Funkcje nawigacji dla Monthly
     function goToPreviousMonth() {
-        const [year, month] = selectedMonth.split("-").map(Number);
-        const date = new Date(year, month - 2, 1); // month-2 bo miesiące są 0-indexed
-        setSelectedMonth(date.toISOString().slice(0, 7));
+        setSelectedMonth(addMonths(selectedMonth, -1));
     }
 
     function goToNextMonth() {
-        const [year, month] = selectedMonth.split("-").map(Number);
-        const date = new Date(year, month, 1); // month bo miesiące są 0-indexed
-        setSelectedMonth(date.toISOString().slice(0, 7));
+        setSelectedMonth(addMonths(selectedMonth, 1));
     }
 
-    // State dla modalów z opisami statystyk
-    const [showStatInfo, setShowStatInfo] = useState<string | null>(null);
-
-    const statDescriptions = {
-        strength: "Strength represents physical power and toughness. Complete tasks related to physical activities, workouts, or demanding physical work to level up.",
-        endurance: "Endurance shows your stamina and persistence. Tasks requiring long-term effort, consistency, or physical stamina will improve this stat.",
-        intelligence: "Intelligence reflects mental capacity and learning. Complete tasks involving study, problem-solving, research, or creative thinking to grow.",
-        agility: "Agility represents speed, reflexes, and adaptability. Quick tasks, time-sensitive challenges, or activities requiring coordination boost this stat.",
-        charisma: "Charisma shows your social skills and influence. Tasks involving communication, networking, presentations, or helping others will enhance this stat."
-    };
-
-    // NOWE: Helper do pobierania aktywnych zadań (dzisiaj, jutro, flexible)
-
+    // ========== MODAL FUNCTIONS ==========
 
     function openTaskModal(date?: string) {
         setEditingTask(null);
@@ -320,10 +173,10 @@ export default function App() {
         setTaskIsRecurring(false);
         setTaskRecurringType("daily");
         setTaskRecurringDay(1);
-        setTaskRecurringEndDate(""); // NOWE: reset end date
+        setTaskRecurringEndDate("");
         setTaskClassId("");
         setTaskSkillId("");
-        setTaskIsFlexible(false); // NOWE: reset flexible
+        setTaskIsFlexible(false);
         setShowTaskModal(true);
     }
 
@@ -338,14 +191,13 @@ export default function App() {
         setTaskIsRecurring(task.isRecurring || false);
         setTaskRecurringType(task.recurringType || "daily");
         setTaskRecurringDay(task.recurringDay || 1);
-        setTaskRecurringEndDate(task.recurringEndDate || ""); // NOWE
+        setTaskRecurringEndDate(task.recurringEndDate || "");
         setTaskClassId(task.classId || "");
         setTaskSkillId(task.skillId || "");
-        setTaskIsFlexible(task.isFlexible || false); // NOWE
+        setTaskIsFlexible(task.isFlexible || false);
         setShowTaskModal(true);
     }
 
-    // NOWE: Funkcja do otwierania podglądu ukończonego zadania
     function openCompletedTaskView(task: Task) {
         setViewingTask(task);
         setShowCompletedTaskModal(true);
@@ -356,6 +208,8 @@ export default function App() {
         setEditingTask(null);
     }
 
+    // ========== TASK MANAGEMENT FUNCTIONS ==========
+
     function saveTask() {
         if (!taskName.trim()) return;
 
@@ -365,19 +219,19 @@ export default function App() {
             name: taskName,
             description: taskDescription,
             completed: editingTask?.completed || false,
-            completedAt: editingTask?.completedAt, // NOWE: zachowaj completedAt
+            completedAt: editingTask?.completedAt,
             xpReward: taskXpReward,
             priority: taskPriority,
-            dueDate: taskIsFlexible ? "" : taskDueDate, // NOWE: puste due date dla flexible
+            dueDate: taskIsFlexible ? "" : taskDueDate,
             subtasks: editingTask?.subtasks || [],
             createdAt: editingTask?.createdAt || new Date().toISOString(),
             isRecurring: taskIsRecurring,
             recurringType: taskIsRecurring ? taskRecurringType : undefined,
             recurringDay: taskIsRecurring && taskRecurringType !== "daily" ? taskRecurringDay : undefined,
-            recurringEndDate: taskIsRecurring && taskRecurringEndDate ? taskRecurringEndDate : undefined, // NOWE
+            recurringEndDate: taskIsRecurring && taskRecurringEndDate ? taskRecurringEndDate : undefined,
             classId: taskClassId || null,
             skillId: taskSkillId || null,
-            isFlexible: taskIsFlexible, // NOWE
+            isFlexible: taskIsFlexible,
         };
 
         if (editingTask) {
@@ -398,93 +252,68 @@ export default function App() {
         if (!task) return;
 
         if (task.isRecurring && date) {
-            const existing = recurringCompletions.find(rc => rc.taskId === taskId && rc.date === date);
-            if (existing) {
-                setRecurringCompletions(recurringCompletions.map(rc => rc.taskId === taskId && rc.date === date ? { ...rc, completed: !rc.completed } : rc));
-            } else {
-                setRecurringCompletions([...recurringCompletions, { taskId, date, completed: true }]);
-            }
+            // Toggle recurring task for specific date
+            const updatedCompletions = toggleRecurringTaskCompletion(taskId, date, recurringCompletions);
+            setRecurringCompletions(updatedCompletions);
 
-            const isCompleting = !existing?.completed;
+            // Award XP if completing
+            const isCompleting = !recurringCompletions.find(
+                rc => rc.taskId === taskId && rc.date === date
+            )?.completed;
+
             if (isCompleting) {
-                awardXP(task.xpReward, task);
+                handleAwardXP(task.xpReward, task);
             }
         } else {
+            // Toggle regular task
             const wasCompleted = task.completed;
             const updatedTask = {
                 ...task,
                 completed: !task.completed,
-                completedAt: !task.completed ? new Date().toISOString() : undefined, // NOWE: zapisz datę zakończenia
-                dueDate: task.isFlexible && !task.completed ? date || today : task.dueDate // NOWE: ustaw due date dla flexible przy zakończeniu
+                completedAt: !task.completed ? new Date().toISOString() : undefined,
+                dueDate: task.isFlexible && !task.completed ? date || today : task.dueDate
             };
             setTasks(tasks.map(t => (t.id === taskId ? updatedTask : t)));
 
             if (!wasCompleted) {
-                awardXP(task.xpReward, task);
+                handleAwardXP(task.xpReward, task);
             }
         }
     }
 
-    function awardXP(xp: number, task: Task) {
-        let newChar = { ...character };
-        newChar.xp += xp;
-        newChar.totalXp += xp;
-
-        while (newChar.xp >= calculateXpForLevel(newChar.level)) {
-            newChar.xp -= calculateXpForLevel(newChar.level);
-            newChar.level++;
-            newChar.unspentPoints++;
-        }
-
-        if (task.classId) {
-            const taskClass = taskClasses.find(c => c.id === task.classId);
-            if (taskClass) {
-                const statKey = taskClass.statType;
-                const progressKey = `${statKey}Progress` as keyof Character;
-                const currentProgress = newChar[progressKey] as number;
-                const currentStatValue = newChar[statKey] as number;
-
-                let updatedProgress = currentProgress + 1;
-                let updatedStatValue = currentStatValue;
-
-                if (updatedProgress >= currentStatValue + 1) {
-                    updatedProgress = 0;
-                    updatedStatValue++;
-                }
-
-                newChar = {
-                    ...newChar,
-                    [statKey]: updatedStatValue,
-                    [progressKey]: updatedProgress,
-                };
-            }
-        }
-
-        if (task.skillId) {
-            const skill = skills.find(s => s.id === task.skillId);
-            if (skill) {
-                let updatedProgress = skill.progress + 1;
-                let updatedLevel = skill.level;
-
-                if (updatedProgress >= skill.level + 1) {
-                    updatedProgress = 0;
-                    updatedLevel++;
-                }
-
-                setSkills(skills.map(s => s.id === task.skillId ? { ...s, level: updatedLevel, progress: updatedProgress } : s));
-            }
-        }
-
-        setCharacter(newChar);
+    function getFlexibleTasks(): Task[] {
+        return tasks.filter(t => !t.completed && t.isFlexible);
     }
+
+    function getTodayTasksList(): Task[] {
+        return tasks.filter(t => !t.completed && t.dueDate === today && !t.isRecurring);
+    }
+
+    function getTomorrowTasksList(): Task[] {
+        return tasks.filter(t => !t.completed && t.dueDate === tomorrow && !t.isRecurring);
+    }
+
+    function getActiveRecurringTasksList(): Task[] {
+        return getActiveRecurringTasks(tasks);
+    }
+
+    function isTaskCompleted(task: Task, date: string): boolean {
+        return isTaskCompletedOnDate(task, date, recurringCompletions);
+    }
+    function handleAwardXP(xp: number, task: Task) {
+        const result = awardXPUtil(character, xp, task, taskClasses, skills);
+        setCharacter(result.character);
+        setSkills(result.skills);
+    }
+
+    // ========== PROJECT MANAGEMENT FUNCTIONS ==========
 
     function addProject() {
         if (!newProjectName.trim()) return;
-        const randomColor = `hsl(${Math.random() * 360}, 70%, 60%)`;
         const newProject: Project = {
             id: Date.now().toString(),
             name: newProjectName,
-            color: randomColor,
+            color: generateRandomColor(),
             description: newProjectDesc,
         };
         setProjects([...projects, newProject]);
@@ -497,14 +326,15 @@ export default function App() {
         setTasks(tasks.map(t => (t.projectId === projectId ? { ...t, projectId: null } : t)));
     }
 
+    // ========== TASK CLASS MANAGEMENT FUNCTIONS ==========
+
     function addTaskClass() {
         if (!newClassName.trim()) return;
-        const randomColor = `hsl(${Math.random() * 360}, 70%, 60%)`;
         const newClass: TaskClass = {
             id: Date.now().toString(),
             name: newClassName,
             statType: newClassStat,
-            color: randomColor,
+            color: generateRandomColor(),
         };
         setTaskClasses([...taskClasses, newClass]);
         setNewClassName("");
@@ -515,15 +345,16 @@ export default function App() {
         setTasks(tasks.map(t => (t.classId === classId ? { ...t, classId: null } : t)));
     }
 
+    // ========== SKILL MANAGEMENT FUNCTIONS ==========
+
     function addSkill() {
         if (!newSkillName.trim()) return;
-        const randomColor = `hsl(${Math.random() * 360}, 70%, 60%)`;
         const newSkill: Skill = {
             id: Date.now().toString(),
             name: newSkillName,
             level: 1,
             progress: 0,
-            color: randomColor,
+            color: generateRandomColor(),
         };
         setSkills([...skills, newSkill]);
         setNewSkillName("");
@@ -534,84 +365,57 @@ export default function App() {
         setTasks(tasks.map(t => (t.skillId === skillId ? { ...t, skillId: null } : t)));
     }
 
+    // ========== CHARACTER FUNCTIONS ==========
+
+    function spendPoint(stat: StatType) {
+        if (character.unspentPoints <= 0) return;
+        const newChar = { ...character };
+        newChar.unspentPoints--;
+        newChar[stat] = (newChar[stat] as number) + 1;
+        setCharacter(newChar);
+    }
+
+    function changeAvatar(avatar: string) {
+        setCharacter({ ...character, avatar });
+    }
+
+    function changeName(name: string) {
+        setCharacter({ ...character, name });
+    }
+
+    // ========== RESET FUNCTION ==========
+
     function resetProgress() {
         setTasks([]);
         setProjects([]);
         setTaskClasses([]);
         setSkills([]);
-        setCharacter({
-            name: "Adventurer",
-            level: 1,
-            xp: 0,
-            totalXp: 0,
-            avatar: "⚔️",
-            strength: 1,
-            strengthProgress: 0,
-            endurance: 1,
-            enduranceProgress: 0,
-            intelligence: 1,
-            intelligenceProgress: 0,
-            agility: 1,
-            agilityProgress: 0,
-            charisma: 1,
-            charismaProgress: 0,
-            unspentPoints: 0,
-        });
+        setCharacter(DEFAULT_CHARACTER);
         setRecurringCompletions([]);
         setShowResetConfirm(false);
     }
 
-    function getTasksForDate(date: string) {
-        const today = new Date().toISOString().slice(0, 10);
-
-        return tasks.filter(t => {
-            if (t.isRecurring) {
-                // Zadania powtarzalne nie pojawiają się w przeszłości (przed dzisiejszym dniem)
-                if (date < today) return false;
-
-                // Sprawdź czy zadanie nie przekroczyło daty zakończenia (jeśli ustawiona)
-                if (t.recurringEndDate && date > t.recurringEndDate) return false;
-
-                // Sprawdź czy zadanie nie jest z przeszłości (data utworzenia lub due date)
-                const taskStartDate = t.dueDate || t.createdAt.slice(0, 10);
-                if (date < taskStartDate) return false;
-
-                if (t.recurringType === "daily") return true;
-                if (t.recurringType === "weekly") {
-                    const taskDay = new Date(taskStartDate).getDay();
-                    const targetDay = new Date(date).getDay();
-                    return taskDay === targetDay;
-                }
-                if (t.recurringType === "monthly") {
-                    const taskDate = new Date(taskStartDate).getDate();
-                    const targetDate = new Date(date).getDate();
-                    return taskDate === targetDate;
-                }
-            }
-            return t.dueDate === date;
-        });
+    // Funkcje dla flexible tasks
+    function getFlexibleTasks(): Task[] {
+        return tasks.filter(t => !t.completed && t.isFlexible);
     }
 
-    function isTaskCompletedOnDate(task: Task, date: string): boolean {
-        if (task.isRecurring) {
-            const completion = recurringCompletions.find(rc => rc.taskId === task.id && rc.date === date);
-            return completion?.completed || false;
-        }
-        return task.completed;
+    function getTodayTasks(): Task[] {
+        return tasks.filter(t => !t.completed && t.dueDate === today && !t.isRecurring);
     }
 
-    const weekDates = getWeekDates(selectedDate);
-    const monthDates = getMonthDates(selectedMonth);
+    function getTomorrowTasks(): Task[] {
+        return tasks.filter(t => !t.completed && t.dueDate === tomorrow && !t.isRecurring);
+    }
 
-    const dailyTasks = getTasksForDate(selectedDate);
+    function getActiveRecurringTasksList(): Task[] {
+        return tasks.filter(
+            t => t.isRecurring && (!t.recurringEndDate || t.recurringEndDate >= today)
+        );
+    }
 
-    const sortedTasks = [...tasks].sort((a, b) => {
-        if (a.completed !== b.completed) return a.completed ? 1 : -1;
-        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-    });
-
-    const xpForNextLevel = calculateXpForLevel(character.level);
-
+    // ========== RENDER ==========
+    // Note: The JSX render logic continues in the next part...
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-slate-100 p-2 sm:p-4">
             <div className="max-w-7xl mx-auto">
@@ -783,7 +587,7 @@ export default function App() {
                                 </div>
                             ) : (
                                 dailyTasks.map(task => {
-                                    const isCompleted = isTaskCompletedOnDate(task, selectedDate);
+                                    const isCompleted = isTaskCompletedOnDate(task, selectedDate, recurringCompletions);
                                     const project = task.projectId ? projects.find(p => p.id === task.projectId) : null;
                                     const taskClass = task.classId ? taskClasses.find(c => c.id === task.classId) : null;
                                     const skill = task.skillId ? skills.find(s => s.id === task.skillId) : null;
@@ -928,8 +732,8 @@ export default function App() {
 
                         <div className="grid grid-cols-1 lg:grid-cols-7 gap-4">
                             {weekDates.map(date => {
-                                const dayTasks = getTasksForDate(date);
-                                const completedCount = dayTasks.filter(t => isTaskCompletedOnDate(t, date)).length;
+                                const dayTasks = getTasksForDate(tasks, date);
+                                const completedCount = dayTasks.filter(t => isTaskCompletedOnDate(t, date, recurringCompletions)).length;
                                 const isToday = date === today;
 
                                 return (
@@ -952,7 +756,7 @@ export default function App() {
 
                                         <div className="space-y-2">
                                             {dayTasks.map(task => {
-                                                const isCompleted = isTaskCompletedOnDate(task, date);
+                                                const isCompleted = isTaskCompletedOnDate(task, date, recurringCompletions);
                                                 return (
                                                     <div
                                                         key={task.id}
@@ -1036,8 +840,8 @@ export default function App() {
                                 if (!date)
                                     return <div key={`empty-${idx}`} className="aspect-square bg-slate-900 rounded-lg" />;
 
-                                const dayTasks = getTasksForDate(date);
-                                const completedCount = dayTasks.filter(t => isTaskCompletedOnDate(t, date)).length;
+                                const dayTasks = getTasksForDate(tasks, date);
+                                const completedCount = dayTasks.filter(t => isTaskCompletedOnDate(t, date, recurringCompletions)).length;
                                 const isToday = date === today;
 
                                 return (
@@ -1051,7 +855,7 @@ export default function App() {
                                         </div>
                                         <div className="flex-1 space-y-1 overflow-y-auto">
                                             {dayTasks.slice(0, 2).map(task => {
-                                                const isCompleted = isTaskCompletedOnDate(task, date);
+                                                const isCompleted = isTaskCompletedOnDate(task, date, recurringCompletions);
                                                 return (
                                                     <div
                                                         key={task.id}
@@ -1360,7 +1164,7 @@ export default function App() {
                                         const project = task.projectId ? projects.find(p => p.id === task.projectId) : null;
                                         const taskClass = task.classId ? taskClasses.find(c => c.id === task.classId) : null;
                                         const skill = task.skillId ? skills.find(s => s.id === task.skillId) : null;
-                                        const isCompletedToday = isTaskCompletedOnDate(task, today);
+                                        const isCompletedToday = isTaskCompletedOnDate(task, today, recurringCompletions);
 
                                         return (
                                             <div key={task.id} onClick={(e) => {
