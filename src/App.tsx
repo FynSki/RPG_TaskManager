@@ -26,16 +26,18 @@ import type {
     RecurringTaskCompletion,
     ViewType,
     StatType
-} from './refactored-src/types/index';
+} from './refactored-src/types';
 
+// Constants
 import {
     AVATARS,
     STAT_DESCRIPTIONS,
-    STAT_CONFIG,
     DEFAULT_CHARACTER
-} from './refactored-src/constants/index';
+} from './refactored-src/constants';
 
+// Utilities
 import {
+    // Date utils
     getWeekDates,
     getMonthDates,
     getDayName,
@@ -46,18 +48,20 @@ import {
     addDays,
     addMonths,
 
+    // Task utils
     getTasksForDate,
     isTaskCompletedOnDate,
-    getActiveRecurringTasks,
     sortTasks,
     generateRandomColor,
     toggleRecurringTaskCompletion,
 
+    // XP utils
     calculateXpForLevel,
     awardXP as awardXPUtil,
 
+    // Custom hook
     usePersistedState
-} from './refactored-src/utils/index';
+} from './refactored-src/utils';
 
 // ==================== UTILITY COMPONENTS ====================
 
@@ -281,20 +285,6 @@ export default function App() {
         }
     }
 
-    function getFlexibleTasks(): Task[] {
-        return tasks.filter(t => !t.completed && t.isFlexible);
-    }
-
-    function getTodayTasksList(): Task[] {
-        return tasks.filter(t => !t.completed && t.dueDate === today && !t.isRecurring);
-    }
-
-    function getTomorrowTasksList(): Task[] {
-        return tasks.filter(t => !t.completed && t.dueDate === tomorrow && !t.isRecurring);
-    }
-
-
-
     function handleAwardXP(xp: number, task: Task) {
         const result = awardXPUtil(character, xp, task, taskClasses, skills);
         setCharacter(result.character);
@@ -360,7 +350,6 @@ export default function App() {
         setTasks(tasks.map(t => (t.skillId === skillId ? { ...t, skillId: null } : t)));
     }
 
-
     // ========== RESET FUNCTION ==========
 
     function resetProgress() {
@@ -372,8 +361,6 @@ export default function App() {
         setRecurringCompletions([]);
         setShowResetConfirm(false);
     }
-
-    
 
     // ========== RENDER ==========
     // Note: The JSX render logic continues in the next part...
@@ -548,7 +535,7 @@ export default function App() {
                                 </div>
                             ) : (
                                 dailyTasks.map(task => {
-                                    const isCompleted = isTaskCompletedOnDate(task, selectedDate, recurringCompletions);
+                                    const isCompleted = isTaskCompletedOnDate(task, selectedDate);
                                     const project = task.projectId ? projects.find(p => p.id === task.projectId) : null;
                                     const taskClass = task.classId ? taskClasses.find(c => c.id === task.classId) : null;
                                     const skill = task.skillId ? skills.find(s => s.id === task.skillId) : null;
@@ -2087,7 +2074,7 @@ export default function App() {
                                 </button>
                             </div>
                             <p className="text-slate-300 text-sm leading-relaxed">
-                                {STAT_DESCRIPTIONS[showStatInfo as keyof typeof statDescriptions]}
+                                {showStatInfo && STAT_DESCRIPTIONS[showStatInfo as StatType]}
                             </p>
                             <button
                                 onClick={() => setShowStatInfo(null)}
