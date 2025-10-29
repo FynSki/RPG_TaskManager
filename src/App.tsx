@@ -47,18 +47,18 @@ import {
     getTomorrow,
     addDays,
     addMonths,
-    
+
     // Task utils
     getTasksForDate,
     isTaskCompletedOnDate,
     sortTasks,
     generateRandomColor,
     toggleRecurringTaskCompletion,
-    
+
     // XP utils
     calculateXpForLevel,
     awardXP as awardXPUtil,
-    
+
     // Custom hook
     usePersistedState
 } from './refactored-src/utils';
@@ -289,6 +289,17 @@ export default function App() {
         const result = awardXPUtil(character, xp, task, taskClasses, skills);
         setCharacter(result.character);
         setSkills(result.skills);
+    }
+
+    // ========== CHARACTER STAT FUNCTIONS ==========
+
+    function spendPoint(stat: StatType) {
+        if (character.unspentPoints <= 0) return;
+
+        const newChar = { ...character };
+        newChar.unspentPoints--;
+        newChar[stat] = (newChar[stat] as number) + 1;
+        setCharacter(newChar);
     }
 
     // ========== PROJECT MANAGEMENT FUNCTIONS ==========
@@ -535,7 +546,7 @@ export default function App() {
                                 </div>
                             ) : (
                                 dailyTasks.map(task => {
-                                    const isCompleted = isTaskCompletedOnDate(task, selectedDate, recurringCompletions);
+                                    const isCompleted = isTaskCompletedOnDate(task, selectedDate);
                                     const project = task.projectId ? projects.find(p => p.id === task.projectId) : null;
                                     const taskClass = task.classId ? taskClasses.find(c => c.id === task.classId) : null;
                                     const skill = task.skillId ? skills.find(s => s.id === task.skillId) : null;
@@ -681,7 +692,7 @@ export default function App() {
                         <div className="grid grid-cols-1 lg:grid-cols-7 gap-4">
                             {weekDates.map(date => {
                                 const dayTasks = getTasksForDate(tasks, date);
-                                const completedCount = dayTasks.filter(t => isTaskCompletedOnDate(t, date, recurringCompletions)).length;
+                                const completedCount = dayTasks.filter(t => isTaskCompletedOnDate(t, date)).length;
                                 const isToday = date === today;
 
                                 return (
@@ -789,7 +800,7 @@ export default function App() {
                                     return <div key={`empty-${idx}`} className="aspect-square bg-slate-900 rounded-lg" />;
 
                                 const dayTasks = getTasksForDate(tasks, date);
-                                const completedCount = dayTasks.filter(t => isTaskCompletedOnDate(t, date, recurringCompletions)).length;
+                                const completedCount = dayTasks.filter(t => isTaskCompletedOnDate(t, date)).length;
                                 const isToday = date === today;
 
                                 return (
@@ -1112,7 +1123,7 @@ export default function App() {
                                         const project = task.projectId ? projects.find(p => p.id === task.projectId) : null;
                                         const taskClass = task.classId ? taskClasses.find(c => c.id === task.classId) : null;
                                         const skill = task.skillId ? skills.find(s => s.id === task.skillId) : null;
-                                        const isCompletedToday = isTaskCompletedOnDate(task, today, recurringCompletions);
+                                        const isCompletedToday = isTaskCompletedOnDate(task, today);
 
                                         return (
                                             <div key={task.id} onClick={(e) => {
@@ -1441,6 +1452,28 @@ export default function App() {
                                 </div>
                             </div>
 
+                            {/* Unspent Points Banner */}
+                            {character.unspentPoints > 0 && (
+                                <div className="bg-gradient-to-r from-yellow-900/20 to-amber-900/20 rounded-lg p-4 sm:p-6 border-2 border-yellow-600/50 mb-6">
+                                    <div className="flex items-center justify-between mb-4">
+                                        <div>
+                                            <h3 className="text-lg sm:text-xl font-semibold text-yellow-400 flex items-center gap-2">
+                                                ⭐ Level Up!
+                                            </h3>
+                                            <p className="text-sm text-slate-300 mt-1">
+                                                You have {character.unspentPoints} unspent {character.unspentPoints === 1 ? 'point' : 'points'}
+                                            </p>
+                                        </div>
+                                        <div className="text-3xl sm:text-4xl font-bold text-yellow-400">
+                                            {character.unspentPoints}
+                                        </div>
+                                    </div>
+                                    <p className="text-xs sm:text-sm text-slate-400">
+                                        Click on the <span className="text-yellow-400 font-bold">+</span> button next to any stat below to spend your points!
+                                    </p>
+                                </div>
+                            )}
+
                             <div className="bg-slate-900 rounded-lg p-4 sm:p-6 border border-slate-700">
                                 <h3 className="text-lg sm:text-xl font-semibold mb-4">Stats</h3>
                                 <div className="space-y-4">
@@ -1468,7 +1501,18 @@ export default function App() {
                                                             ℹ️
                                                         </button>
                                                     </div>
-                                                    <span className="text-base sm:text-lg font-bold text-indigo-400">{value}</span>
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="text-base sm:text-lg font-bold text-indigo-400">{value}</span>
+                                                        {character.unspentPoints > 0 && (
+                                                            <button
+                                                                onClick={() => spendPoint(stat.key as StatType)}
+                                                                className="w-7 h-7 rounded-full bg-yellow-600 hover:bg-yellow-500 text-white font-bold transition flex items-center justify-center shadow-lg hover:shadow-yellow-500/50"
+                                                                title="Spend 1 point to increase this stat"
+                                                            >
+                                                                +
+                                                            </button>
+                                                        )}
+                                                    </div>
                                                 </div>
                                                 <ProgressBar value={progress} max={value + 1} />
                                                 <p className="text-xs text-slate-400 mt-1">
