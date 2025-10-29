@@ -47,18 +47,18 @@ import {
     getTomorrow,
     addDays,
     addMonths,
-
+    
     // Task utils
     getTasksForDate,
-    ,
+    isTaskCompletedOnDate,
     sortTasks,
     generateRandomColor,
     toggleRecurringTaskCompletion,
-
+    
     // XP utils
     calculateXpForLevel,
     awardXP as awardXPUtil,
-
+    
     // Custom hook
     usePersistedState
 } from './refactored-src/utils';
