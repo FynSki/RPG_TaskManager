@@ -50,7 +50,7 @@ import {
 
     // Task utils
     getTasksForDate,
-    isTaskCompletedOnDate,
+    ,
     sortTasks,
     generateRandomColor,
     toggleRecurringTaskCompletion,
@@ -535,7 +535,7 @@ export default function App() {
                                 </div>
                             ) : (
                                 dailyTasks.map(task => {
-                                    const isCompleted = isTaskCompletedOnDate(task, selectedDate);
+                                    const isCompleted = isTaskCompletedOnDate(task, selectedDate, recurringCompletions);
                                     const project = task.projectId ? projects.find(p => p.id === task.projectId) : null;
                                     const taskClass = task.classId ? taskClasses.find(c => c.id === task.classId) : null;
                                     const skill = task.skillId ? skills.find(s => s.id === task.skillId) : null;
