@@ -146,6 +146,13 @@ export default function App() {
     const sortedTasks = sortTasks(tasks);
     const xpForNextLevel = calculateXpForLevel(character.level);
 
+    // Sorted task lists for different views
+    const sortedDailyTasks = sortTasks(dailyTasks);
+    const sortedTodayTasks = sortTasks(tasks.filter(t => !t.completed && t.dueDate === today && !t.isRecurring));
+    const sortedTomorrowTasks = sortTasks(tasks.filter(t => !t.completed && t.dueDate === tomorrow && !t.isRecurring));
+    const sortedFlexibleTasks = sortTasks(tasks.filter(t => !t.completed && t.isFlexible));
+    const sortedRecurringTasks = sortTasks(tasks.filter(t => t.isRecurring && (!t.recurringEndDate || t.recurringEndDate >= today)));
+
     // ========== NAVIGATION FUNCTIONS ==========
 
     function goToPreviousWeek() {
@@ -539,14 +546,14 @@ export default function App() {
                         </div>
 
                         <div className="space-y-3">
-                            {dailyTasks.length === 0 ? (
+                            {sortedDailyTasks.length === 0 ? (
                                 <div className="text-center py-12 text-slate-400">
                                     <p className="text-lg mb-2">No quests for this day</p>
                                     <p className="text-sm">Click "Add Quest" to create one!</p>
                                 </div>
                             ) : (
-                                dailyTasks.map(task => {
-                                    const isCompleted = isTaskCompletedOnDate(task, selectedDate, recurringCompletions);
+                                sortedDailyTasks.map(task => {
+                                    const isCompleted = isTaskCompletedOnDate(task, selectedDate);
                                     const project = task.projectId ? projects.find(p => p.id === task.projectId) : null;
                                     const taskClass = task.classId ? taskClasses.find(c => c.id === task.classId) : null;
                                     const skill = task.skillId ? skills.find(s => s.id === task.skillId) : null;
@@ -692,7 +699,7 @@ export default function App() {
                         <div className="grid grid-cols-1 lg:grid-cols-7 gap-4">
                             {weekDates.map(date => {
                                 const dayTasks = getTasksForDate(tasks, date);
-                                const completedCount = dayTasks.filter(t => isTaskCompletedOnDate(t, date, recurringCompletions)).length;
+                                const completedCount = dayTasks.filter(t => isTaskCompletedOnDate(t, date)).length;
                                 const isToday = date === today;
 
                                 return (
@@ -800,7 +807,7 @@ export default function App() {
                                     return <div key={`empty-${idx}`} className="aspect-square bg-slate-900 rounded-lg" />;
 
                                 const dayTasks = getTasksForDate(tasks, date);
-                                const completedCount = dayTasks.filter(t => isTaskCompletedOnDate(t, date, recurringCompletions)).length;
+                                const completedCount = dayTasks.filter(t => isTaskCompletedOnDate(t, date)).length;
                                 const isToday = date === today;
 
                                 return (
@@ -1024,10 +1031,10 @@ export default function App() {
                         <div className="mb-6">
                             <h3 className="text-lg font-semibold mb-3 text-indigo-400">📅 Today ({formatShortDate(today)})</h3>
                             <div className="space-y-3">
-                                {tasks.filter(t => !t.completed && t.dueDate === today && !t.isRecurring).length === 0 ? (
+                                {sortedTodayTasks.length === 0 ? (
                                     <p className="text-slate-400 text-sm">No tasks for today</p>
                                 ) : (
-                                    tasks.filter(t => !t.completed && t.dueDate === today && !t.isRecurring).map(task => {
+                                    sortedTodayTasks.map(task => {
                                         const project = task.projectId ? projects.find(p => p.id === task.projectId) : null;
                                         const taskClass = task.classId ? taskClasses.find(c => c.id === task.classId) : null;
                                         const skill = task.skillId ? skills.find(s => s.id === task.skillId) : null;
@@ -1116,14 +1123,14 @@ export default function App() {
                         <div className="mb-6">
                             <h3 className="text-lg font-semibold mb-3 text-purple-400">🔄 Recurring Tasks</h3>
                             <div className="space-y-3">
-                                {tasks.filter(t => t.isRecurring && (!t.recurringEndDate || t.recurringEndDate >= today)).length === 0 ? (
+                                {sortedRecurringTasks.length === 0 ? (
                                     <p className="text-slate-400 text-sm">No active recurring tasks</p>
                                 ) : (
-                                    tasks.filter(t => t.isRecurring && (!t.recurringEndDate || t.recurringEndDate >= today)).map(task => {
+                                    sortedRecurringTasks.map(task => {
                                         const project = task.projectId ? projects.find(p => p.id === task.projectId) : null;
                                         const taskClass = task.classId ? taskClasses.find(c => c.id === task.classId) : null;
                                         const skill = task.skillId ? skills.find(s => s.id === task.skillId) : null;
-                                        const isCompletedToday = isTaskCompletedOnDate(task, today, recurringCompletions);
+                                        const isCompletedToday = isTaskCompletedOnDate(task, today);
 
                                         return (
                                             <div key={task.id} onClick={(e) => {
@@ -1213,10 +1220,10 @@ export default function App() {
                         <div className="mb-6">
                             <h3 className="text-lg font-semibold mb-3 text-teal-400">🕐 Flexible Tasks</h3>
                             <div className="space-y-3">
-                                {tasks.filter(t => !t.completed && t.isFlexible).length === 0 ? (
+                                {sortedFlexibleTasks.length === 0 ? (
                                     <p className="text-slate-400 text-sm">No flexible tasks</p>
                                 ) : (
-                                    tasks.filter(t => !t.completed && t.isFlexible).map(task => {
+                                    sortedFlexibleTasks.map(task => {
                                         const project = task.projectId ? projects.find(p => p.id === task.projectId) : null;
                                         const taskClass = task.classId ? taskClasses.find(c => c.id === task.classId) : null;
                                         const skill = task.skillId ? skills.find(s => s.id === task.skillId) : null;
@@ -1308,10 +1315,10 @@ export default function App() {
                         <div>
                             <h3 className="text-lg font-semibold mb-3 text-purple-400">🌅 Tomorrow ({formatShortDate(tomorrow)})</h3>
                             <div className="space-y-3">
-                                {tasks.filter(t => !t.completed && t.dueDate === tomorrow && !t.isRecurring).length === 0 ? (
+                                {sortedTomorrowTasks.length === 0 ? (
                                     <p className="text-slate-400 text-sm">No tasks scheduled for tomorrow</p>
                                 ) : (
-                                    tasks.filter(t => !t.completed && t.dueDate === tomorrow && !t.isRecurring).map(task => {
+                                    sortedTomorrowTasks.map(task => {
                                         const project = task.projectId ? projects.find(p => p.id === task.projectId) : null;
                                         const taskClass = task.classId ? taskClasses.find(c => c.id === task.classId) : null;
                                         const skill = task.skillId ? skills.find(s => s.id === task.skillId) : null;
