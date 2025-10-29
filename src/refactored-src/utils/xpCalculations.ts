@@ -50,10 +50,16 @@ export function awardXP(
             const progressValue = (newChar[progressKey] as number) + 1;
 
             if (progressValue >= statValue + 1) {
-                newChar[statKey] = (statValue + 1) as any;
-                newChar[progressKey] = 0 as any;
+                // Level up stat
+                const updatedChar = { ...newChar };
+                (updatedChar[statKey] as any) = statValue + 1;
+                (updatedChar[progressKey] as any) = 0;
+                newChar = updatedChar;
             } else {
-                newChar[progressKey] = progressValue as any;
+                // Progress stat
+                const updatedChar = { ...newChar };
+                (updatedChar[progressKey] as any) = progressValue;
+                newChar = updatedChar;
             }
         }
     }
