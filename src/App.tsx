@@ -546,7 +546,7 @@ export default function App() {
                                 </div>
                             ) : (
                                 dailyTasks.map(task => {
-                                    const isCompleted = isTaskCompletedOnDate(task, selectedDate);
+                                    const isCompleted = isTaskCompletedOnDate(task, selectedDate, recurringCompletions);
                                     const project = task.projectId ? projects.find(p => p.id === task.projectId) : null;
                                     const taskClass = task.classId ? taskClasses.find(c => c.id === task.classId) : null;
                                     const skill = task.skillId ? skills.find(s => s.id === task.skillId) : null;
@@ -692,7 +692,7 @@ export default function App() {
                         <div className="grid grid-cols-1 lg:grid-cols-7 gap-4">
                             {weekDates.map(date => {
                                 const dayTasks = getTasksForDate(tasks, date);
-                                const completedCount = dayTasks.filter(t => isTaskCompletedOnDate(t, date)).length;
+                                const completedCount = dayTasks.filter(t => isTaskCompletedOnDate(t, date, recurringCompletions)).length;
                                 const isToday = date === today;
 
                                 return (
@@ -800,7 +800,7 @@ export default function App() {
                                     return <div key={`empty-${idx}`} className="aspect-square bg-slate-900 rounded-lg" />;
 
                                 const dayTasks = getTasksForDate(tasks, date);
-                                const completedCount = dayTasks.filter(t => isTaskCompletedOnDate(t, date)).length;
+                                const completedCount = dayTasks.filter(t => isTaskCompletedOnDate(t, date, recurringCompletions)).length;
                                 const isToday = date === today;
 
                                 return (
@@ -1123,7 +1123,7 @@ export default function App() {
                                         const project = task.projectId ? projects.find(p => p.id === task.projectId) : null;
                                         const taskClass = task.classId ? taskClasses.find(c => c.id === task.classId) : null;
                                         const skill = task.skillId ? skills.find(s => s.id === task.skillId) : null;
-                                        const isCompletedToday = isTaskCompletedOnDate(task, today);
+                                        const isCompletedToday = isTaskCompletedOnDate(task, today, recurringCompletions);
 
                                         return (
                                             <div key={task.id} onClick={(e) => {
