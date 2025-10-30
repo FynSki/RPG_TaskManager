@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { AboutPage } from './components/AboutPage';
 
 /**
  * TaskQuest - Gamified Task Management Application
@@ -106,7 +107,7 @@ export default function App() {
     const [viewingTask, setViewingTask] = useState<Task | null>(null);
     const [editingTask, setEditingTask] = useState<Task | null>(null);
     const [showResetConfirm, setShowResetConfirm] = useState(false);
-    const [showInfoPopup, setShowInfoPopup] = useState(false);
+    const [showAboutPage, setShowAboutPage] = useState(false);
     const [showMobileMenu, setShowMobileMenu] = useState(false);
     const [showStatInfo, setShowStatInfo] = useState<string | null>(null);
 
@@ -381,6 +382,12 @@ export default function App() {
     }
 
     // ========== RENDER ==========
+
+    // Show About Page (fullscreen overlay)
+    if (showAboutPage) {
+        return <AboutPage onClose={() => setShowAboutPage(false)} />;
+    }
+
     // Note: The JSX render logic continues in the next part...
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-slate-100 p-2 sm:p-4">
@@ -1119,6 +1126,92 @@ export default function App() {
                             </div>
                         </div>
 
+                        {/* Jutrzejsze zadania - BEZ zadań powtarzalnych */}
+                        <div>
+                            <h3 className="text-lg font-semibold mb-3 text-purple-400">🌅 Tomorrow ({formatShortDate(tomorrow)})</h3>
+                            <div className="space-y-3">
+                                {sortedTomorrowTasks.length === 0 ? (
+                                    <p className="text-slate-400 text-sm">No tasks scheduled for tomorrow</p>
+                                ) : (
+                                    sortedTomorrowTasks.map(task => {
+                                        const project = task.projectId ? projects.find(p => p.id === task.projectId) : null;
+                                        const taskClass = task.classId ? taskClasses.find(c => c.id === task.classId) : null;
+                                        const skill = task.skillId ? skills.find(s => s.id === task.skillId) : null;
+
+                                        return (
+                                            <div key={task.id} onClick={() => openEditModal(task)} className="bg-slate-900 rounded-lg p-4 border border-slate-700 opacity-75 cursor-pointer hover:opacity-100 hover:border-slate-600 transition">
+                                                <div className="flex items-start gap-4">
+                                                    <div className="mt-1 w-5 h-5 rounded border-2 border-slate-600" />
+                                                    <div className="flex-1">
+                                                        <h3 className="text-lg font-semibold">{task.name}</h3>
+                                                        {task.description && (
+                                                            <p className="text-sm text-slate-400 mt-1">{task.description}</p>
+                                                        )}
+                                                        <div className="flex flex-wrap gap-2 mt-3">
+                                                            <span className="text-xs px-3 py-1 rounded-full bg-indigo-900 text-indigo-300 border border-indigo-700">
+                                                                {task.xpReward} XP
+                                                            </span>
+                                                            {task.priority && (
+                                                                <span
+                                                                    className={`text-xs px-3 py-1 rounded-full ${task.priority === "high"
+                                                                        ? "bg-rose-900 text-rose-300 border border-rose-700"
+                                                                        : task.priority === "medium"
+                                                                            ? "bg-amber-900 text-amber-300 border border-amber-700"
+                                                                            : "bg-slate-700 text-slate-300 border border-slate-600"
+                                                                        }`}
+                                                                >
+                                                                    {task.priority}
+                                                                </span>
+                                                            )}
+                                                            {project && (
+                                                                <span
+                                                                    className="text-xs px-3 py-1 rounded-full border"
+                                                                    style={{
+                                                                        borderColor: project.color,
+                                                                        color: project.color,
+                                                                        backgroundColor: `${project.color}20`,
+                                                                    }}
+                                                                >
+                                                                    {project.name}
+                                                                </span>
+                                                            )}
+                                                            {taskClass && (
+                                                                <span
+                                                                    className="text-xs px-3 py-1 rounded-full border"
+                                                                    style={{
+                                                                        borderColor: taskClass.color,
+                                                                        color: taskClass.color,
+                                                                        backgroundColor: `${taskClass.color}20`,
+                                                                    }}
+                                                                >
+                                                                    {taskClass.name}
+                                                                </span>
+                                                            )}
+                                                            {skill && (
+                                                                <span
+                                                                    className="text-xs px-3 py-1 rounded-full border"
+                                                                    style={{
+                                                                        borderColor: skill.color,
+                                                                        color: skill.color,
+                                                                        backgroundColor: `${skill.color}20`,
+                                                                    }}
+                                                                >
+                                                                    {skill.name}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })
+                                )}
+                            </div>
+                        </div>
+
+
+
+
                         {/* NOWE: Zadania powtarzalne - aktywne cały czas (bez końca lub jeszcze nieukończone) */}
                         <div className="mb-6">
                             <h3 className="text-lg font-semibold mb-3 text-purple-400">🔄 Recurring Tasks</h3>
@@ -1216,183 +1309,9 @@ export default function App() {
                             </div>
                         </div>
 
-                        {/* Flexible tasks (bez due date) */}
-                        <div className="mb-6">
-                            <h3 className="text-lg font-semibold mb-3 text-teal-400">🕐 Flexible Tasks</h3>
-                            <div className="space-y-3">
-                                {sortedFlexibleTasks.length === 0 ? (
-                                    <p className="text-slate-400 text-sm">No flexible tasks</p>
-                                ) : (
-                                    sortedFlexibleTasks.map(task => {
-                                        const project = task.projectId ? projects.find(p => p.id === task.projectId) : null;
-                                        const taskClass = task.classId ? taskClasses.find(c => c.id === task.classId) : null;
-                                        const skill = task.skillId ? skills.find(s => s.id === task.skillId) : null;
 
-                                        return (
-                                            <div key={task.id} onClick={(e) => {
-                                                if ((e.target as HTMLElement).tagName !== 'INPUT') {
-                                                    openEditModal(task);
-                                                }
-                                            }} className="bg-slate-900 rounded-lg p-4 border border-teal-700 cursor-pointer hover:border-teal-600 transition">
-                                                <div className="flex items-start gap-4">
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={task.completed}
-                                                        onChange={() => toggleTask(task.id, today)}
-                                                        className="mt-1 w-5 h-5 rounded border-slate-600 text-teal-600 focus:ring-teal-500"
-                                                    />
-                                                    <div className="flex-1">
-                                                        <h3 className="text-lg font-semibold">{task.name}</h3>
-                                                        {task.description && (
-                                                            <p className="text-sm text-slate-400 mt-1">{task.description}</p>
-                                                        )}
-                                                        <div className="flex flex-wrap gap-2 mt-3">
-                                                            <span className="text-xs px-3 py-1 rounded-full bg-indigo-900 text-indigo-300 border border-indigo-700">
-                                                                {task.xpReward} XP
-                                                            </span>
-                                                            <span className="text-xs px-3 py-1 rounded-full bg-teal-900 text-teal-300 border border-teal-700">
-                                                                🕐 No deadline
-                                                            </span>
-                                                            {task.priority && (
-                                                                <span
-                                                                    className={`text-xs px-3 py-1 rounded-full ${task.priority === "high"
-                                                                        ? "bg-rose-900 text-rose-300 border border-rose-700"
-                                                                        : task.priority === "medium"
-                                                                            ? "bg-amber-900 text-amber-300 border border-amber-700"
-                                                                            : "bg-slate-700 text-slate-300 border border-slate-600"
-                                                                        }`}
-                                                                >
-                                                                    {task.priority}
-                                                                </span>
-                                                            )}
-                                                            {project && (
-                                                                <span
-                                                                    className="text-xs px-3 py-1 rounded-full border"
-                                                                    style={{
-                                                                        borderColor: project.color,
-                                                                        color: project.color,
-                                                                        backgroundColor: `${project.color}20`,
-                                                                    }}
-                                                                >
-                                                                    {project.name}
-                                                                </span>
-                                                            )}
-                                                            {taskClass && (
-                                                                <span
-                                                                    className="text-xs px-3 py-1 rounded-full border"
-                                                                    style={{
-                                                                        borderColor: taskClass.color,
-                                                                        color: taskClass.color,
-                                                                        backgroundColor: `${taskClass.color}20`,
-                                                                    }}
-                                                                >
-                                                                    {taskClass.name}
-                                                                </span>
-                                                            )}
-                                                            {skill && (
-                                                                <span
-                                                                    className="text-xs px-3 py-1 rounded-full border"
-                                                                    style={{
-                                                                        borderColor: skill.color,
-                                                                        color: skill.color,
-                                                                        backgroundColor: `${skill.color}20`,
-                                                                    }}
-                                                                >
-                                                                    {skill.name}
-                                                                </span>
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        );
-                                    })
-                                )}
-                            </div>
-                        </div>
 
-                        {/* Jutrzejsze zadania - BEZ zadań powtarzalnych */}
-                        <div>
-                            <h3 className="text-lg font-semibold mb-3 text-purple-400">🌅 Tomorrow ({formatShortDate(tomorrow)})</h3>
-                            <div className="space-y-3">
-                                {sortedTomorrowTasks.length === 0 ? (
-                                    <p className="text-slate-400 text-sm">No tasks scheduled for tomorrow</p>
-                                ) : (
-                                    sortedTomorrowTasks.map(task => {
-                                        const project = task.projectId ? projects.find(p => p.id === task.projectId) : null;
-                                        const taskClass = task.classId ? taskClasses.find(c => c.id === task.classId) : null;
-                                        const skill = task.skillId ? skills.find(s => s.id === task.skillId) : null;
 
-                                        return (
-                                            <div key={task.id} onClick={() => openEditModal(task)} className="bg-slate-900 rounded-lg p-4 border border-slate-700 opacity-75 cursor-pointer hover:opacity-100 hover:border-slate-600 transition">
-                                                <div className="flex items-start gap-4">
-                                                    <div className="mt-1 w-5 h-5 rounded border-2 border-slate-600" />
-                                                    <div className="flex-1">
-                                                        <h3 className="text-lg font-semibold">{task.name}</h3>
-                                                        {task.description && (
-                                                            <p className="text-sm text-slate-400 mt-1">{task.description}</p>
-                                                        )}
-                                                        <div className="flex flex-wrap gap-2 mt-3">
-                                                            <span className="text-xs px-3 py-1 rounded-full bg-indigo-900 text-indigo-300 border border-indigo-700">
-                                                                {task.xpReward} XP
-                                                            </span>
-                                                            {task.priority && (
-                                                                <span
-                                                                    className={`text-xs px-3 py-1 rounded-full ${task.priority === "high"
-                                                                        ? "bg-rose-900 text-rose-300 border border-rose-700"
-                                                                        : task.priority === "medium"
-                                                                            ? "bg-amber-900 text-amber-300 border border-amber-700"
-                                                                            : "bg-slate-700 text-slate-300 border border-slate-600"
-                                                                        }`}
-                                                                >
-                                                                    {task.priority}
-                                                                </span>
-                                                            )}
-                                                            {project && (
-                                                                <span
-                                                                    className="text-xs px-3 py-1 rounded-full border"
-                                                                    style={{
-                                                                        borderColor: project.color,
-                                                                        color: project.color,
-                                                                        backgroundColor: `${project.color}20`,
-                                                                    }}
-                                                                >
-                                                                    {project.name}
-                                                                </span>
-                                                            )}
-                                                            {taskClass && (
-                                                                <span
-                                                                    className="text-xs px-3 py-1 rounded-full border"
-                                                                    style={{
-                                                                        borderColor: taskClass.color,
-                                                                        color: taskClass.color,
-                                                                        backgroundColor: `${taskClass.color}20`,
-                                                                    }}
-                                                                >
-                                                                    {taskClass.name}
-                                                                </span>
-                                                            )}
-                                                            {skill && (
-                                                                <span
-                                                                    className="text-xs px-3 py-1 rounded-full border"
-                                                                    style={{
-                                                                        borderColor: skill.color,
-                                                                        color: skill.color,
-                                                                        backgroundColor: `${skill.color}20`,
-                                                                    }}
-                                                                >
-                                                                    {skill.name}
-                                                                </span>
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        );
-                                    })
-                                )}
-                            </div>
-                        </div>
                     </div>
                 )}
 
@@ -1609,7 +1528,7 @@ export default function App() {
                             <h2 className="text-2xl font-semibold">Settings</h2>
                             {/* NOWE: Ikona informacyjna */}
                             <button
-                                onClick={() => setShowInfoPopup(true)}
+                                onClick={() => setShowAboutPage(true)}
                                 className="w-10 h-10 rounded-full bg-slate-900 border border-slate-700 hover:border-indigo-500 transition flex items-center justify-center text-xl"
                                 title="Information"
                             >
@@ -2133,76 +2052,6 @@ export default function App() {
                             >
                                 Got it!
                             </button>
-                        </div>
-                    </div>
-                )}
-
-                {/* NOWE: Info Popup */}
-                {showInfoPopup && (
-                    <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 p-4 overflow-y-auto">
-                        <div className="bg-slate-800 rounded-xl p-6 max-w-md w-full border border-slate-700 my-8">
-                            <div className="flex justify-between items-start mb-6">
-                                <h3 className="text-2xl font-semibold">ℹ️ Information</h3>
-                                <button
-                                    onClick={() => setShowInfoPopup(false)}
-                                    className="text-slate-400 hover:text-slate-200 text-2xl"
-                                >
-                                    ✕
-                                </button>
-                            </div>
-
-                            <div className="space-y-6">
-                                <div>
-                                    <h4 className="text-lg font-semibold mb-2 text-indigo-400">About TaskQuest</h4>
-                                    <p className="text-slate-300 text-sm">
-                                        TaskQuest is a gamified task management application that turns your daily tasks
-                                        into an RPG adventure. Complete quests, earn XP, level up your character, and
-                                        develop your skills!
-                                    </p>
-                                </div>
-
-                                <div>
-                                    <h4 className="text-lg font-semibold mb-2 text-indigo-400">Creator</h4>
-                                    <p className="text-slate-300 text-sm">
-                                        Created with ❤️ by [Your Name]
-                                    </p>
-                                    <p className="text-slate-400 text-xs mt-1">
-                                        Version 2.0 - October 2025
-                                    </p>
-                                </div>
-
-                                <div>
-                                    <h4 className="text-lg font-semibold mb-2 text-indigo-400">Privacy Policy</h4>
-                                    <p className="text-slate-300 text-sm">
-                                        All your data is stored locally in your browser using localStorage. We do not
-                                        collect, transmit, or store any of your personal information on external servers.
-                                        Your tasks, character progress, and settings remain completely private and under
-                                        your control.
-                                    </p>
-                                </div>
-
-                                <div>
-                                    <h4 className="text-lg font-semibold mb-2 text-indigo-400">Features</h4>
-                                    <ul className="text-slate-300 text-sm space-y-1">
-                                        <li>• Daily, Weekly, and Monthly task views</li>
-                                        <li>• RPG-style character progression</li>
-                                        <li>• Custom skills and task classes</li>
-                                        <li>• Project management</li>
-                                        <li>• Flexible tasks without deadlines</li>
-                                        <li>• Recurring tasks support</li>
-                                        <li>• Active Tasks overview</li>
-                                    </ul>
-                                </div>
-                            </div>
-
-                            <div className="mt-6">
-                                <button
-                                    onClick={() => setShowInfoPopup(false)}
-                                    className="w-full bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-lg transition"
-                                >
-                                    Got it!
-                                </button>
-                            </div>
                         </div>
                     </div>
                 )}
