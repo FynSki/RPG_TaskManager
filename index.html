@@ -1,24 +1,43 @@
 <!doctype html>
 <html lang="en">
-  <head>
-
-    <!-- Google tag (gtag.js) -->
+<head>
+    <!-- Google Analytics -->
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-Z5QJXF5FED"></script>
     <script>
-      window.dataLayer = window.dataLayer || [];
-      function gtag(){dataLayer.push(arguments);}
-      gtag('js', new Date());
-    
-      gtag('config', 'G-Z5QJXF5FED');
+        window.dataLayer = window.dataLayer || [];
+        function gtag() { dataLayer.push(arguments); }
+        gtag('js', new Date());
+        gtag('config', 'G-Z5QJXF5FED');
     </script>
-    
+
+    <!-- Basic Meta Tags -->
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Vite + React + TS</title>
-  </head>
-  <body>
+    
+    <!-- Canonical URL -->
+    <link rel="canonical" href="https://rpgplanner.app/" />
+    
+    <!-- Title & Description -->
+    <title>RPG Planner - Level up your life</title>
+    <meta name="description" content="Turn your daily tasks into RPG quests. Level up your character, earn XP, and complete missions. The ultimate gamified task manager." />
+    
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://rpgplanner.app/" />
+    <meta property="og:title" content="RPG Planner - Level up your life" />
+    <meta property="og:description" content="Turn your daily tasks into RPG quests. Level up your character as you complete daily missions." />
+    
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:url" content="https://rpgplanner.app/" />
+    <meta name="twitter:title" content="RPG Planner - Level up your life" />
+    <meta name="twitter:description" content="Turn your daily tasks into RPG quests. Level up your character as you complete daily missions." />
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+</head>
+<body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
-  </body>
+</body>
 </html>
