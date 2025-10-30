@@ -151,7 +151,7 @@ export default function App() {
     const sortedDailyTasks = sortTasks(dailyTasks);
     const sortedTodayTasks = sortTasks(tasks.filter(t => !t.completed && t.dueDate === today && !t.isRecurring));
     const sortedTomorrowTasks = sortTasks(tasks.filter(t => !t.completed && t.dueDate === tomorrow && !t.isRecurring));
-    const sortedFlexibleTasks = sortTasks(tasks.filter(t => !t.completed && t.isFlexible));
+    //const sortedFlexibleTasks = sortTasks(tasks.filter(t => !t.completed && t.isFlexible));
     const sortedRecurringTasks = sortTasks(tasks.filter(t => t.isRecurring && (!t.recurringEndDate || t.recurringEndDate >= today)));
 
     // ========== NAVIGATION FUNCTIONS ==========
