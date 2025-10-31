@@ -402,6 +402,15 @@ export default function App() {
                                     {character.name}
                                 </h1>
                                 <p className="text-slate-400 text-xs sm:text-sm">Level {character.level} Adventurer</p>
+
+                                {/* Mini stats bar */}
+                                <div className="flex flex-wrap gap-3 mt-2 text-slate-300 text-sm">
+                                    <span>💪 {character.strength}</span>
+                                    <span>🏃 {character.endurance}</span>
+                                    <span>🧠 {character.intelligence}</span>
+                                    <span>⚡ {character.agility}</span>
+                                    <span>✨ {character.charisma}</span>
+                                </div>
                             </div>
                         </div>
                         <div className="w-full sm:w-48 md:w-64">
