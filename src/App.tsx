@@ -153,6 +153,8 @@ export default function App() {
     const sortedTomorrowTasks = sortTasks(tasks.filter(t => !t.completed && t.dueDate === tomorrow && !t.isRecurring));
     //const sortedFlexibleTasks = sortTasks(tasks.filter(t => !t.completed && t.isFlexible));
     const sortedRecurringTasks = sortTasks(tasks.filter(t => t.isRecurring && (!t.recurringEndDate || t.recurringEndDate >= today)));
+    const sortedBacklogTasks = sortTasks(tasks.filter(t => !t.completed && t.dueDate && t.dueDate < today && !t.isRecurring));
+    const sortedNoDueDateTasks = sortTasks(tasks.filter(t => !t.completed && !t.dueDate && !t.isRecurring));
 
     // ========== NAVIGATION FUNCTIONS ==========
 
@@ -1033,7 +1035,7 @@ export default function App() {
                         <div className="flex justify-between items-center mb-6">
                             <div>
                                 <h2 className="text-2xl font-semibold">🔥 Active Tasks</h2>
-                                <p className="text-sm text-slate-400 mt-1">Today's tasks, recurring tasks, flexible tasks, and tomorrow's planning</p>
+                                <p className="text-sm text-slate-400 mt-1">Today's tasks, overdue backlog, recurring tasks, flexible tasks, and tomorrow's planning</p>
                             </div>
                             <button
                                 onClick={() => openTaskModal()}
@@ -1134,6 +1136,8 @@ export default function App() {
                                 )}
                             </div>
                         </div>
+
+                        
 
                         {/* Jutrzejsze zadania - BEZ zadań powtarzalnych */}
                         <div>
@@ -1318,7 +1322,195 @@ export default function App() {
                             </div>
                         </div>
 
+                        {/* Zadania bez terminu wykonania */}
+                        <div className="mb-6">
+                            <h3 className="text-lg font-semibold mb-3 text-slate-400">📋 No Due Date (Flexible Tasks)</h3>
+                            <div className="space-y-3">
+                                {sortedNoDueDateTasks.length === 0 ? (
+                                    <p className="text-slate-400 text-sm">No tasks without due date</p>
+                                ) : (
+                                    sortedNoDueDateTasks.map(task => {
+                                        const project = task.projectId ? projects.find(p => p.id === task.projectId) : null;
+                                        const taskClass = task.classId ? taskClasses.find(c => c.id === task.classId) : null;
+                                        const skill = task.skillId ? skills.find(s => s.id === task.skillId) : null;
 
+                                        return (
+                                            <div key={task.id} onClick={(e) => {
+                                                if ((e.target as HTMLElement).tagName !== 'INPUT') {
+                                                    openEditModal(task);
+                                                }
+                                            }} className="bg-slate-900 rounded-lg p-4 border border-slate-700 cursor-pointer hover:border-slate-600 transition">
+                                                <div className="flex items-start gap-4">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={task.completed}
+                                                        onChange={() => toggleTask(task.id, today)}
+                                                        className="mt-1 w-5 h-5 rounded border-slate-600 text-indigo-600 focus:ring-indigo-500"
+                                                    />
+                                                    <div className="flex-1">
+                                                        <h3 className="text-lg font-semibold">{task.name}</h3>
+                                                        {task.description && (
+                                                            <p className="text-sm text-slate-400 mt-1">{task.description}</p>
+                                                        )}
+                                                        <div className="flex flex-wrap gap-2 mt-3">
+                                                            <span className="text-xs px-3 py-1 rounded-full bg-slate-700 text-slate-300 border border-slate-600">
+                                                                📋 No deadline
+                                                            </span>
+                                                            <span className="text-xs px-3 py-1 rounded-full bg-indigo-900 text-indigo-300 border border-indigo-700">
+                                                                {task.xpReward} XP
+                                                            </span>
+                                                            {task.priority && (
+                                                                <span
+                                                                    className={`text-xs px-3 py-1 rounded-full ${task.priority === "high"
+                                                                        ? "bg-rose-900 text-rose-300 border border-rose-700"
+                                                                        : task.priority === "medium"
+                                                                            ? "bg-amber-900 text-amber-300 border border-amber-700"
+                                                                            : "bg-slate-700 text-slate-300 border border-slate-600"
+                                                                        }`}
+                                                                >
+                                                                    {task.priority}
+                                                                </span>
+                                                            )}
+                                                            {project && (
+                                                                <span
+                                                                    className="text-xs px-3 py-1 rounded-full border"
+                                                                    style={{
+                                                                        borderColor: project.color,
+                                                                        color: project.color,
+                                                                        backgroundColor: `${project.color}20`,
+                                                                    }}
+                                                                >
+                                                                    {project.name}
+                                                                </span>
+                                                            )}
+                                                            {taskClass && (
+                                                                <span
+                                                                    className="text-xs px-3 py-1 rounded-full border"
+                                                                    style={{
+                                                                        borderColor: taskClass.color,
+                                                                        color: taskClass.color,
+                                                                        backgroundColor: `${taskClass.color}20`,
+                                                                    }}
+                                                                >
+                                                                    {taskClass.name}
+                                                                </span>
+                                                            )}
+                                                            {skill && (
+                                                                <span
+                                                                    className="text-xs px-3 py-1 rounded-full border"
+                                                                    style={{
+                                                                        borderColor: skill.color,
+                                                                        color: skill.color,
+                                                                        backgroundColor: `${skill.color}20`,
+                                                                    }}
+                                                                >
+                                                                    {skill.name}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Backlog - przeterminowane zadania */}
+                        <div className="mb-6">
+                            <h3 className="text-lg font-semibold mb-3 text-rose-400">⏰ Backlog (Overdue Tasks)</h3>
+                            <div className="space-y-3">
+                                {sortedBacklogTasks.length === 0 ? (
+                                    <p className="text-slate-400 text-sm">No overdue tasks</p>
+                                ) : (
+                                    sortedBacklogTasks.map(task => {
+                                        const project = task.projectId ? projects.find(p => p.id === task.projectId) : null;
+                                        const taskClass = task.classId ? taskClasses.find(c => c.id === task.classId) : null;
+                                        const skill = task.skillId ? skills.find(s => s.id === task.skillId) : null;
+
+                                        return (
+                                            <div key={task.id} onClick={(e) => {
+                                                if ((e.target as HTMLElement).tagName !== 'INPUT') {
+                                                    openEditModal(task);
+                                                }
+                                            }} className="bg-slate-900 rounded-lg p-4 border border-rose-700/50 cursor-pointer hover:border-rose-600 transition">
+                                                <div className="flex items-start gap-4">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={task.completed}
+                                                        onChange={() => toggleTask(task.id, today)}
+                                                        className="mt-1 w-5 h-5 rounded border-slate-600 text-rose-600 focus:ring-rose-500"
+                                                    />
+                                                    <div className="flex-1">
+                                                        <h3 className="text-lg font-semibold">{task.name}</h3>
+                                                        {task.description && (
+                                                            <p className="text-sm text-slate-400 mt-1">{task.description}</p>
+                                                        )}
+                                                        <div className="flex flex-wrap gap-2 mt-3">
+                                                            <span className="text-xs px-3 py-1 rounded-full bg-rose-900 text-rose-300 border border-rose-700">
+                                                                ⏰ Due: {formatShortDate(task.dueDate || '')}
+                                                            </span>
+                                                            <span className="text-xs px-3 py-1 rounded-full bg-indigo-900 text-indigo-300 border border-indigo-700">
+                                                                {task.xpReward} XP
+                                                            </span>
+                                                            {task.priority && (
+                                                                <span
+                                                                    className={`text-xs px-3 py-1 rounded-full ${task.priority === "high"
+                                                                        ? "bg-rose-900 text-rose-300 border border-rose-700"
+                                                                        : task.priority === "medium"
+                                                                            ? "bg-amber-900 text-amber-300 border border-amber-700"
+                                                                            : "bg-slate-700 text-slate-300 border border-slate-600"
+                                                                        }`}
+                                                                >
+                                                                    {task.priority}
+                                                                </span>
+                                                            )}
+                                                            {project && (
+                                                                <span
+                                                                    className="text-xs px-3 py-1 rounded-full border"
+                                                                    style={{
+                                                                        borderColor: project.color,
+                                                                        color: project.color,
+                                                                        backgroundColor: `${project.color}20`,
+                                                                    }}
+                                                                >
+                                                                    {project.name}
+                                                                </span>
+                                                            )}
+                                                            {taskClass && (
+                                                                <span
+                                                                    className="text-xs px-3 py-1 rounded-full border"
+                                                                    style={{
+                                                                        borderColor: taskClass.color,
+                                                                        color: taskClass.color,
+                                                                        backgroundColor: `${taskClass.color}20`,
+                                                                    }}
+                                                                >
+                                                                    {taskClass.name}
+                                                                </span>
+                                                            )}
+                                                            {skill && (
+                                                                <span
+                                                                    className="text-xs px-3 py-1 rounded-full border"
+                                                                    style={{
+                                                                        borderColor: skill.color,
+                                                                        color: skill.color,
+                                                                        backgroundColor: `${skill.color}20`,
+                                                                    }}
+                                                                >
+                                                                    {skill.name}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })
+                                )}
+                            </div>
+                        </div>
 
 
                     </div>
@@ -1354,19 +1546,20 @@ export default function App() {
                                     <ProgressBar value={character.xp} max={xpForNextLevel} />
                                 </div>
 
-                                <div className="grid grid-cols-4 gap-2 mb-6">
-                                    {AVATARS.map(avatar => (
-                                        <button
-                                            key={avatar}
-                                            onClick={() => setCharacter({ ...character, avatar })}
-                                            className={`text-3xl sm:text-4xl p-2 sm:p-3 rounded-lg transition ${character.avatar === avatar
-                                                ? "bg-indigo-900 border-2 border-indigo-500"
-                                                : "bg-slate-800 hover:bg-slate-700 border-2 border-transparent"
-                                                }`}
-                                        >
-                                            {avatar}
-                                        </button>
-                                    ))}
+                                <div className="mb-6">
+                                    <label className="block text-sm font-medium text-slate-400 mb-2">Choose Avatar</label>
+                                    <select
+                                        value={character.avatar}
+                                        onChange={(e) => setCharacter({ ...character, avatar: e.target.value })}
+                                        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-3 text-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                                        style={{ fontFamily: 'system-ui' }}
+                                    >
+                                        {AVATARS.map(avatar => (
+                                            <option key={avatar} value={avatar}>
+                                                {avatar}
+                                            </option>
+                                        ))}
+                                    </select>
                                 </div>
 
                                 <div className="space-y-2 text-xs sm:text-sm text-slate-300">
