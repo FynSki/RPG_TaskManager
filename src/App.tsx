@@ -301,7 +301,7 @@ export default function App() {
         setTaskDescription("");
         setTaskPriority("common");
         setTaskDueDate(date || selectedDate);
-        setTaskXpReward(50);
+        //setTaskXpReward(50);
         setTaskProjectId("");
         setTaskIsRecurring(false);
         setTaskRecurringType("daily");
@@ -319,7 +319,7 @@ export default function App() {
         setTaskDescription(task.description);
         setTaskPriority(task.priority);
         setTaskDueDate(task.dueDate);
-        setTaskXpReward(getRarityXP(task.priority)); // Auto-assign XP based on rarity
+        //setTaskXpReward(getRarityXP(task.priority)); // Auto-assign XP based on rarity
         setTaskProjectId(task.projectId || "");
         setTaskIsRecurring(task.isRecurring || false);
         setTaskRecurringType(task.recurringType || "daily");
@@ -1957,7 +1957,7 @@ export default function App() {
                                             onChange={(e) => {
                                                 const newRarity = e.target.value as "common" | "rare" | "epic" | "legendary" | "unique";
                                                 setTaskPriority(newRarity);
-                                                setTaskXpReward(getRarityXP(newRarity));
+                                                //setTaskXpReward(getRarityXP(newRarity));
                                             }}
                                             className="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-lg text-slate-100"
                                         >
