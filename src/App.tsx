@@ -187,9 +187,10 @@ export default function App() {
 
     // Auto-migrate old priority values to new rarities (one-time migration)
     useEffect(() => {
-        const needsMigration = tasks.some(task =>
-            task.priority === "low" || task.priority === "medium" || task.priority === "high"
-        );
+        const needsMigration = tasks.some(task => {
+            const p = task.priority as any;
+            return p === "low" || p === "medium" || p === "high";
+        });
 
         if (needsMigration) {
             console.log("🔄 Migrating old priority values to new rarities...");
