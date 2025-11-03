@@ -235,7 +235,7 @@ export default function App() {
     const [taskDescription, setTaskDescription] = useState("");
     const [taskPriority, setTaskPriority] = useState<"common" | "rare" | "epic" | "legendary" | "unique">("common");
     const [taskDueDate, setTaskDueDate] = useState("");
-    const [taskXpReward, setTaskXpReward] = useState(50);
+    //const [taskXpReward, setTaskXpReward] = useState(50);
     const [taskProjectId, setTaskProjectId] = useState<string>("");
     const [taskIsRecurring, setTaskIsRecurring] = useState(false);
     const [taskRecurringType, setTaskRecurringType] = useState<"daily" | "weekly" | "monthly">("daily");
