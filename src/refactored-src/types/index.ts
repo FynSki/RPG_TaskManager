@@ -22,8 +22,8 @@ export type Task = {
     description: string;
     completed: boolean;
     xpReward: number;
-    priority: "low" | "medium" | "high";
-    dueDate: string; // mo¿e byæ pusty string dla flexible tasks
+    priority: "common" | "rare" | "epic" | "legendary" | "unique";
+    dueDate: string; // moÅ¼e byÄ‡ pusty string dla flexible tasks
     subtasks: SubTask[];
     createdAt: string;
     completedAt?: string;
