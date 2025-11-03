@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { AboutPage } from './components/AboutPage';
 
 /**
@@ -64,6 +64,82 @@ import {
     usePersistedState
 } from './refactored-src/utils';
 
+// ==================== UTILITY FUNCTIONS ====================
+
+/**
+ * Get XP reward based on task rarity
+ */
+function getRarityXP(rarity: "common" | "rare" | "epic" | "legendary" | "unique" | "low" | "medium" | "high" | any): number {
+    // Auto-migrate old priorities to new rarities
+    if (rarity === "low") rarity = "common";
+    if (rarity === "medium") rarity = "rare";
+    if (rarity === "high") rarity = "epic";
+
+    const xpMap: Record<string, number> = {
+        common: 50,
+        rare: 100,
+        epic: 250,
+        legendary: 500,
+        unique: 1000
+    };
+    return xpMap[rarity] || 50; // Fallback to 50 if unknown
+}
+
+/**
+ * Get color styling for task rarity
+ */
+function getRarityColor(rarity: "common" | "rare" | "epic" | "legendary" | "unique" | "low" | "medium" | "high" | any) {
+    // Auto-migrate old priorities to new rarities
+    const normalizedRarity = (() => {
+        if (rarity === "low") return "common";
+        if (rarity === "medium") return "rare";
+        if (rarity === "high") return "epic";
+        return rarity;
+    })();
+
+    const colorMap: Record<string, { bg: string; text: string; border: string }> = {
+        common: {
+            bg: "bg-slate-700",
+            text: "text-slate-300",
+            border: "border-slate-600"
+        },
+        rare: {
+            bg: "bg-blue-900",
+            text: "text-blue-300",
+            border: "border-blue-700"
+        },
+        epic: {
+            bg: "bg-purple-900",
+            text: "text-purple-300",
+            border: "border-purple-700"
+        },
+        legendary: {
+            bg: "bg-orange-900",
+            text: "text-orange-300",
+            border: "border-orange-700"
+        },
+        unique: {
+            bg: "bg-yellow-900",
+            text: "text-yellow-300",
+            border: "border-yellow-700"
+        }
+    };
+
+    return colorMap[normalizedRarity] || colorMap.common; // Fallback to common if unknown
+}
+
+/**
+ * Get rarity display name
+ */
+function getRarityDisplay(rarity: "common" | "rare" | "epic" | "legendary" | "unique" | "low" | "medium" | "high" | any): string {
+    // Auto-migrate old priorities to new rarities
+    if (rarity === "low") return "Common";
+    if (rarity === "medium") return "Rare";
+    if (rarity === "high") return "Epic";
+
+    return rarity.charAt(0).toUpperCase() + rarity.slice(1);
+}
+
 // ==================== UTILITY COMPONENTS ====================
 
 function ProgressBar({ value, max }: { value: number; max: number }) {
@@ -75,6 +151,18 @@ function ProgressBar({ value, max }: { value: number; max: number }) {
                 style={{ width: `${pct}%` }}
             />
         </div>
+    );
+}
+
+function RarityBadge({ rarity, showXP = false }: { rarity: "common" | "rare" | "epic" | "legendary" | "unique", showXP?: boolean }) {
+    const colors = getRarityColor(rarity);
+    const xp = getRarityXP(rarity);
+    const display = getRarityDisplay(rarity);
+
+    return (
+        <span className={`text-xs px-2 sm:px-3 py-1 rounded-full ${colors.bg} ${colors.text} border ${colors.border}`}>
+            {display} {showXP && `(${xp} XP)`}
+        </span>
     );
 }
 
@@ -97,6 +185,36 @@ export default function App() {
         []
     );
 
+    // Auto-migrate old priority values to new rarities (one-time migration)
+    useEffect(() => {
+        const needsMigration = tasks.some(task =>
+            task.priority === "low" || task.priority === "medium" || task.priority === "high"
+        );
+
+        if (needsMigration) {
+            console.log("🔄 Migrating old priority values to new rarities...");
+            const migratedTasks = tasks.map(task => {
+                const oldPriority = task.priority as any;
+
+                if (oldPriority === "low") {
+                    return { ...task, priority: "common" as const, xpReward: 50 };
+                }
+                if (oldPriority === "medium") {
+                    return { ...task, priority: "rare" as const, xpReward: 100 };
+                }
+                if (oldPriority === "high") {
+                    return { ...task, priority: "epic" as const, xpReward: 250 };
+                }
+
+                // Already migrated or new format
+                return task;
+            });
+
+            setTasks(migratedTasks);
+            console.log("✅ Migration complete!");
+        }
+    }, []); // Run only once on mount
+
     // Date selection state
     const [selectedDate, setSelectedDate] = useState(getToday());
     const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7));
@@ -114,7 +232,7 @@ export default function App() {
     // Task form state
     const [taskName, setTaskName] = useState("");
     const [taskDescription, setTaskDescription] = useState("");
-    const [taskPriority, setTaskPriority] = useState<"low" | "medium" | "high">("medium");
+    const [taskPriority, setTaskPriority] = useState<"common" | "rare" | "epic" | "legendary" | "unique">("common");
     const [taskDueDate, setTaskDueDate] = useState("");
     const [taskXpReward, setTaskXpReward] = useState(50);
     const [taskProjectId, setTaskProjectId] = useState<string>("");
@@ -180,7 +298,7 @@ export default function App() {
         setEditingTask(null);
         setTaskName("");
         setTaskDescription("");
-        setTaskPriority("medium");
+        setTaskPriority("common");
         setTaskDueDate(date || selectedDate);
         setTaskXpReward(50);
         setTaskProjectId("");
@@ -200,7 +318,7 @@ export default function App() {
         setTaskDescription(task.description);
         setTaskPriority(task.priority);
         setTaskDueDate(task.dueDate);
-        setTaskXpReward(task.xpReward);
+        setTaskXpReward(getRarityXP(task.priority)); // Auto-assign XP based on rarity
         setTaskProjectId(task.projectId || "");
         setTaskIsRecurring(task.isRecurring || false);
         setTaskRecurringType(task.recurringType || "daily");
@@ -234,7 +352,7 @@ export default function App() {
             description: taskDescription,
             completed: editingTask?.completed || false,
             completedAt: editingTask?.completedAt,
-            xpReward: taskXpReward,
+            xpReward: getRarityXP(taskPriority), // Auto-assign XP based on rarity
             priority: taskPriority,
             dueDate: taskIsFlexible ? "" : taskDueDate,
             subtasks: editingTask?.subtasks || [],
@@ -605,18 +723,7 @@ export default function App() {
                                                                 <span className="text-xs px-2 sm:px-3 py-1 rounded-full bg-indigo-900 text-indigo-300 border border-indigo-700">
                                                                     {task.xpReward} XP
                                                                 </span>
-                                                                {task.priority && (
-                                                                    <span
-                                                                        className={`text-xs px-2 sm:px-3 py-1 rounded-full ${task.priority === "high"
-                                                                            ? "bg-rose-900 text-rose-300 border border-rose-700"
-                                                                            : task.priority === "medium"
-                                                                                ? "bg-amber-900 text-amber-300 border border-amber-700"
-                                                                                : "bg-slate-700 text-slate-300 border border-slate-600"
-                                                                            }`}
-                                                                    >
-                                                                        {task.priority}
-                                                                    </span>
-                                                                )}
+                                                                {task.priority && <RarityBadge rarity={task.priority} />}
                                                                 {project && (
                                                                     <span
                                                                         className="text-xs px-2 sm:px-3 py-1 rounded-full border"
@@ -933,18 +1040,7 @@ export default function App() {
                                                                 <span className="text-xs px-3 py-1 rounded-full bg-indigo-900 text-indigo-300 border border-indigo-700">
                                                                     {task.xpReward} XP
                                                                 </span>
-                                                                {task.priority && (
-                                                                    <span
-                                                                        className={`text-xs px-3 py-1 rounded-full ${task.priority === "high"
-                                                                            ? "bg-rose-900 text-rose-300 border border-rose-700"
-                                                                            : task.priority === "medium"
-                                                                                ? "bg-amber-900 text-amber-300 border border-amber-700"
-                                                                                : "bg-slate-700 text-slate-300 border border-slate-600"
-                                                                            }`}
-                                                                    >
-                                                                        {task.priority}
-                                                                    </span>
-                                                                )}
+                                                                {task.priority && <RarityBadge rarity={task.priority} />}
                                                                 {task.dueDate && (
                                                                     <span className="text-xs px-3 py-1 rounded-full bg-slate-700 text-slate-300 border border-slate-600">
                                                                         📅 {task.dueDate}
@@ -1079,18 +1175,7 @@ export default function App() {
                                                             <span className="text-xs px-3 py-1 rounded-full bg-indigo-900 text-indigo-300 border border-indigo-700">
                                                                 {task.xpReward} XP
                                                             </span>
-                                                            {task.priority && (
-                                                                <span
-                                                                    className={`text-xs px-3 py-1 rounded-full ${task.priority === "high"
-                                                                        ? "bg-rose-900 text-rose-300 border border-rose-700"
-                                                                        : task.priority === "medium"
-                                                                            ? "bg-amber-900 text-amber-300 border border-amber-700"
-                                                                            : "bg-slate-700 text-slate-300 border border-slate-600"
-                                                                        }`}
-                                                                >
-                                                                    {task.priority}
-                                                                </span>
-                                                            )}
+                                                            {task.priority && <RarityBadge rarity={task.priority} />}
                                                             {project && (
                                                                 <span
                                                                     className="text-xs px-3 py-1 rounded-full border"
@@ -1137,7 +1222,7 @@ export default function App() {
                             </div>
                         </div>
 
-                        
+
 
                         {/* Jutrzejsze zadania - BEZ zadań powtarzalnych */}
                         <div>
@@ -1164,18 +1249,7 @@ export default function App() {
                                                             <span className="text-xs px-3 py-1 rounded-full bg-indigo-900 text-indigo-300 border border-indigo-700">
                                                                 {task.xpReward} XP
                                                             </span>
-                                                            {task.priority && (
-                                                                <span
-                                                                    className={`text-xs px-3 py-1 rounded-full ${task.priority === "high"
-                                                                        ? "bg-rose-900 text-rose-300 border border-rose-700"
-                                                                        : task.priority === "medium"
-                                                                            ? "bg-amber-900 text-amber-300 border border-amber-700"
-                                                                            : "bg-slate-700 text-slate-300 border border-slate-600"
-                                                                        }`}
-                                                                >
-                                                                    {task.priority}
-                                                                </span>
-                                                            )}
+                                                            {task.priority && <RarityBadge rarity={task.priority} />}
                                                             {project && (
                                                                 <span
                                                                     className="text-xs px-3 py-1 rounded-full border"
@@ -1264,18 +1338,7 @@ export default function App() {
                                                                 🔄 {task.recurringType}
                                                                 {task.recurringEndDate && ` (until ${formatShortDate(task.recurringEndDate)})`}
                                                             </span>
-                                                            {task.priority && (
-                                                                <span
-                                                                    className={`text-xs px-3 py-1 rounded-full ${task.priority === "high"
-                                                                        ? "bg-rose-900 text-rose-300 border border-rose-700"
-                                                                        : task.priority === "medium"
-                                                                            ? "bg-amber-900 text-amber-300 border border-amber-700"
-                                                                            : "bg-slate-700 text-slate-300 border border-slate-600"
-                                                                        }`}
-                                                                >
-                                                                    {task.priority}
-                                                                </span>
-                                                            )}
+                                                            {task.priority && <RarityBadge rarity={task.priority} />}
                                                             {project && (
                                                                 <span
                                                                     className="text-xs px-3 py-1 rounded-full border"
@@ -1359,18 +1422,7 @@ export default function App() {
                                                             <span className="text-xs px-3 py-1 rounded-full bg-indigo-900 text-indigo-300 border border-indigo-700">
                                                                 {task.xpReward} XP
                                                             </span>
-                                                            {task.priority && (
-                                                                <span
-                                                                    className={`text-xs px-3 py-1 rounded-full ${task.priority === "high"
-                                                                        ? "bg-rose-900 text-rose-300 border border-rose-700"
-                                                                        : task.priority === "medium"
-                                                                            ? "bg-amber-900 text-amber-300 border border-amber-700"
-                                                                            : "bg-slate-700 text-slate-300 border border-slate-600"
-                                                                        }`}
-                                                                >
-                                                                    {task.priority}
-                                                                </span>
-                                                            )}
+                                                            {task.priority && <RarityBadge rarity={task.priority} />}
                                                             {project && (
                                                                 <span
                                                                     className="text-xs px-3 py-1 rounded-full border"
@@ -1454,18 +1506,7 @@ export default function App() {
                                                             <span className="text-xs px-3 py-1 rounded-full bg-indigo-900 text-indigo-300 border border-indigo-700">
                                                                 {task.xpReward} XP
                                                             </span>
-                                                            {task.priority && (
-                                                                <span
-                                                                    className={`text-xs px-3 py-1 rounded-full ${task.priority === "high"
-                                                                        ? "bg-rose-900 text-rose-300 border border-rose-700"
-                                                                        : task.priority === "medium"
-                                                                            ? "bg-amber-900 text-amber-300 border border-amber-700"
-                                                                            : "bg-slate-700 text-slate-300 border border-slate-600"
-                                                                        }`}
-                                                                >
-                                                                    {task.priority}
-                                                                </span>
-                                                            )}
+                                                            {task.priority && <RarityBadge rarity={task.priority} />}
                                                             {project && (
                                                                 <span
                                                                     className="text-xs px-3 py-1 rounded-full border"
@@ -1907,28 +1948,27 @@ export default function App() {
                                     />
                                 </div>
 
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div>
                                     <div>
-                                        <label className="block text-sm font-medium mb-2">Priority</label>
+                                        <label className="block text-sm font-medium mb-2">Rarity</label>
                                         <select
                                             value={taskPriority}
-                                            onChange={(e) => setTaskPriority(e.target.value as "low" | "medium" | "high")}
+                                            onChange={(e) => {
+                                                const newRarity = e.target.value as "common" | "rare" | "epic" | "legendary" | "unique";
+                                                setTaskPriority(newRarity);
+                                                setTaskXpReward(getRarityXP(newRarity));
+                                            }}
                                             className="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-lg text-slate-100"
                                         >
-                                            <option value="low">Low</option>
-                                            <option value="medium">Medium</option>
-                                            <option value="high">High</option>
+                                            <option value="common">⚪ Common (50 XP)</option>
+                                            <option value="rare">🔵 Rare (100 XP)</option>
+                                            <option value="epic">🟣 Epic (250 XP)</option>
+                                            <option value="legendary">🟠 Legendary (500 XP)</option>
+                                            <option value="unique">🟡 Unique (1000 XP)</option>
                                         </select>
-                                    </div>
-
-                                    <div>
-                                        <label className="block text-sm font-medium mb-2">XP Reward</label>
-                                        <input
-                                            type="number"
-                                            value={taskXpReward}
-                                            onChange={(e) => setTaskXpReward(Number(e.target.value))}
-                                            className="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-lg text-slate-100"
-                                        />
+                                        <p className="text-xs text-slate-400 mt-2">
+                                            XP Reward: <span className="text-indigo-400 font-semibold">{getRarityXP(taskPriority)} XP</span>
+                                        </p>
                                     </div>
                                 </div>
 
@@ -2116,17 +2156,10 @@ export default function App() {
 
                                 <div className="grid grid-cols-2 gap-4">
                                     <div>
-                                        <label className="block text-sm font-medium text-slate-400 mb-2">Priority</label>
-                                        <span
-                                            className={`inline-block px-4 py-2 rounded-lg text-sm font-medium ${viewingTask.priority === "high"
-                                                ? "bg-rose-900 text-rose-300 border border-rose-700"
-                                                : viewingTask.priority === "medium"
-                                                    ? "bg-amber-900 text-amber-300 border border-amber-700"
-                                                    : "bg-slate-700 text-slate-300 border border-slate-600"
-                                                }`}
-                                        >
-                                            {viewingTask.priority}
-                                        </span>
+                                        <label className="block text-sm font-medium text-slate-400 mb-2">Rarity</label>
+                                        <div className="inline-block">
+                                            <RarityBadge rarity={viewingTask.priority} showXP={true} />
+                                        </div>
                                     </div>
 
                                     <div>
