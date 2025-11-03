@@ -137,7 +137,7 @@ export function createNewTask(overrides: Partial<Task> = {}): Task {
         description: "",
         completed: false,
         xpReward: 50,
-        priority: "medium",
+        priority: "common",
         dueDate: "",
         subtasks: [],
         createdAt: new Date().toISOString(),
