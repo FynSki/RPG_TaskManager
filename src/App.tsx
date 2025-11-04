@@ -514,7 +514,7 @@ export default function App() {
         <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-slate-100 p-2 sm:p-4">
             <div className="max-w-7xl mx-auto">
                 {/* Top Bar */}
-                <div className="bg-slate-800 rounded-xl shadow-xl p-3 sm:p-4 md:p-6 mb-4 border border-slate-700">
+                <div className="bg-slate-800 rounded-xl shadow-xl p-3 sm:p-4 md:p-6 mb-4 border border-slate-700 sticky top-0 z-50 backdrop-blur-md bg-slate-800/90">
                     <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
                         <div className="flex items-center gap-3 sm:gap-4 w-full sm:w-auto">
                             <div className="text-4xl sm:text-5xl flex-shrink-0">{character.avatar}</div>
