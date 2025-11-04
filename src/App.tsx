@@ -230,6 +230,10 @@ export default function App() {
     const [showMobileMenu, setShowMobileMenu] = useState(false);
     const [showStatInfo, setShowStatInfo] = useState<string | null>(null);
 
+    // Collapsible panels state
+    const [isSkillPanelOpen, setIsSkillPanelOpen] = useState(false);
+    const [isTaskClassPanelOpen, setIsTaskClassPanelOpen] = useState(false);
+
     // Task form state
     const [taskName, setTaskName] = useState("");
     const [taskDescription, setTaskDescription] = useState("");
@@ -1695,72 +1699,126 @@ export default function App() {
                             </div>
                         </div>
 
-                        <div className="bg-slate-900 rounded-lg p-4 border border-slate-700 mt-6">
-                            <h3 className="text-lg font-semibold mb-3">Skills Management</h3>
-                            <p className="text-sm text-slate-400 mb-4">
-                                Create custom skills to track your personal growth. Assign skills to tasks to level them up!
-                            </p>
+                        <div className="bg-slate-900 rounded-lg border border-slate-700 mt-6 overflow-hidden">
+                            <button
+                                onClick={() => setIsSkillPanelOpen(!isSkillPanelOpen)}
+                                className="w-full px-4 py-3 flex items-center justify-between bg-slate-900 hover:bg-slate-800 transition-colors text-left"
+                            >
+                                <h3 className="text-lg font-semibold text-slate-100">Skills Management</h3>
+                                <span className="text-xl text-indigo-400">{isSkillPanelOpen ? '▼' : '▶'}</span>
+                            </button>
 
-                            <div className="flex gap-3 mb-4">
-                                <input
-                                    type="text"
-                                    placeholder="Skill name (e.g. Cooking, Guitar)"
-                                    value={newSkillName}
-                                    onChange={(e) => setNewSkillName(e.target.value)}
-                                    className="flex-1 px-4 py-3 bg-slate-800 border border-slate-700 rounded-lg text-slate-100"
-                                />
-                                <button
-                                    onClick={addSkill}
-                                    className="bg-indigo-600 text-white px-6 py-3 rounded-lg hover:bg-indigo-700"
-                                >
-                                    Add Skill
-                                </button>
-                            </div>
+                            {isSkillPanelOpen && (
+                                <div className="p-4 border-t border-slate-700">
+                                    <p className="text-sm text-slate-400 mb-4">
+                                        Create custom skills to track your personal growth. Assign skills to tasks to level them up!
+                                    </p>
 
-                            <div className="space-y-3">
-                                {skills.length > 0 ? (
-                                    skills.map(s => (
-                                        <div
-                                            key={s.id}
-                                            className="bg-slate-800 rounded-lg p-4 border border-slate-700"
+                                    <div className="flex gap-3 mb-4">
+                                        <input
+                                            type="text"
+                                            placeholder="Skill name (e.g. Cooking, Guitar)"
+                                            value={newSkillName}
+                                            onChange={(e) => setNewSkillName(e.target.value)}
+                                            className="flex-1 px-4 py-3 bg-slate-800 border border-slate-700 rounded-lg text-slate-100"
+                                        />
+                                        <button
+                                            onClick={addSkill}
+                                            className="bg-indigo-600 text-white px-6 py-3 rounded-lg hover:bg-indigo-700"
                                         >
-                                            <div className="flex items-center justify-between mb-3">
-                                                <div className="flex items-center gap-3">
-                                                    <div
-                                                        className="w-10 h-10 rounded-full flex items-center justify-center text-lg font-bold"
-                                                        style={{ background: s.color }}
-                                                    >
-                                                        {s.name[0]}
+                                            Add Skill
+                                        </button>
+                                    </div>
+
+                                    <div className="space-y-3">
+                                        {skills.length > 0 ? (
+                                            skills.map(s => (
+                                                <div
+                                                    key={s.id}
+                                                    className="bg-slate-800 rounded-lg p-4 border border-slate-700"
+                                                >
+                                                    <div className="flex items-center justify-between mb-3">
+                                                        <div className="flex items-center gap-3">
+                                                            <div
+                                                                className="w-10 h-10 rounded-full flex items-center justify-center text-lg font-bold"
+                                                                style={{ background: s.color }}
+                                                            >
+                                                                {s.name[0]}
+                                                            </div>
+                                                            <div>
+                                                                <h4 className="font-semibold text-slate-100">{s.name}</h4>
+                                                                <p className="text-xs text-slate-400">Level {s.level}</p>
+                                                            </div>
+                                                        </div>
+                                                        <button
+                                                            onClick={() => deleteSkill(s.id)}
+                                                            className="text-rose-500 hover:text-rose-400"
+                                                        >
+                                                            Delete
+                                                        </button>
                                                     </div>
                                                     <div>
-                                                        <h4 className="font-semibold text-slate-100">{s.name}</h4>
-                                                        <p className="text-xs text-slate-400">Level {s.level}</p>
+                                                        <p className="text-xs text-slate-400 mb-1">
+                                                            Progress to next level
+                                                        </p>
+                                                        <ProgressBar value={s.progress} max={s.level + 1} />
+                                                        <p className="text-xs text-slate-400 mt-1">
+                                                            {s.progress}/{s.level + 1} tasks completed
+                                                        </p>
                                                     </div>
                                                 </div>
-                                                <button
-                                                    onClick={() => deleteSkill(s.id)}
-                                                    className="text-rose-500 hover:text-rose-400"
-                                                >
-                                                    Delete
-                                                </button>
-                                            </div>
-                                            <div>
-                                                <p className="text-xs text-slate-400 mb-1">
-                                                    Progress to next level
-                                                </p>
-                                                <ProgressBar value={s.progress} max={s.level + 1} />
-                                                <p className="text-xs text-slate-400 mt-1">
-                                                    {s.progress}/{s.level + 1} tasks completed
-                                                </p>
-                                            </div>
+                                            ))
+                                        ) : (
+                                            <p className="text-slate-400 text-sm">
+                                                No skills yet — add one to start tracking your personal growth.
+                                            </p>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="bg-slate-900 rounded-lg border border-slate-700 overflow-hidden">
+                            <button
+                                onClick={() => setIsTaskClassPanelOpen(!isTaskClassPanelOpen)}
+                                className="w-full px-4 py-3 flex items-center justify-between bg-slate-900 hover:bg-slate-800 transition-colors text-left"
+                            >
+                                <h3 className="text-lg font-semibold text-slate-100">Task Classes (map to stats)</h3>
+                                <span className="text-xl text-indigo-400">{isTaskClassPanelOpen ? '▼' : '▶'}</span>
+                            </button>
+
+                            {isTaskClassPanelOpen && (
+                                <div className="p-4 border-t border-slate-700">
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                                        <input type="text" placeholder="Class name (e.g. Running)" value={newClassName} onChange={(e) => setNewClassName(e.target.value)} className="px-4 py-3 bg-slate-800 border border-slate-700 rounded-lg text-slate-100" />
+                                        <select value={newClassStat} onChange={(e) => setNewClassStat(e.target.value as "strength" | "endurance" | "intelligence" | "agility" | "charisma")} className="px-4 py-3 bg-slate-800 border border-slate-700 rounded-lg text-slate-100">
+                                            <option value="strength">Strength</option>
+                                            <option value="endurance">Endurance</option>
+                                            <option value="intelligence">Intelligence</option>
+                                            <option value="agility">Agility</option>
+                                            <option value="charisma">Charisma</option>
+                                        </select>
+                                        <div className="flex gap-2 items-center">
+                                            <button onClick={addTaskClass} className="flex-1 bg-indigo-600 text-white px-4 py-2 rounded-lg">Add Class</button>
                                         </div>
-                                    ))
-                                ) : (
-                                    <p className="text-slate-400 text-sm">
-                                        No skills yet — add one to start tracking your personal growth.
-                                    </p>
-                                )}
-                            </div>
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        {taskClasses.map(c => (
+                                            <div key={c.id} className="flex items-center justify-between bg-slate-800 p-3 rounded border border-slate-700">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-8 h-8 rounded-full flex items-center justify-center" style={{ background: c.color }}>{c.name[0]}</div>
+                                                    <div>
+                                                        <div className="font-medium text-slate-100">{c.name}</div>
+                                                        <div className="text-xs text-slate-400">{c.statType}</div>
+                                                    </div>
+                                                </div>
+                                                <button onClick={() => deleteTaskClass(c.id)} className="text-rose-500 hover:text-rose-400">Delete</button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </div>
                 )}
@@ -1884,37 +1942,7 @@ export default function App() {
                             })}
                         </div>
 
-                        <div className="bg-slate-900 rounded-lg p-4 border border-slate-700">
-                            <h3 className="text-lg font-semibold mb-3">Task Classes (map to stats)</h3>
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                                <input type="text" placeholder="Class name (e.g. Running)" value={newClassName} onChange={(e) => setNewClassName(e.target.value)} className="px-4 py-3 bg-slate-800 border border-slate-700 rounded-lg text-slate-100" />
-                                <select value={newClassStat} onChange={(e) => setNewClassStat(e.target.value as "strength" | "endurance" | "intelligence" | "agility" | "charisma")} className="px-4 py-3 bg-slate-800 border border-slate-700 rounded-lg text-slate-100">
-                                    <option value="strength">Strength</option>
-                                    <option value="endurance">Endurance</option>
-                                    <option value="intelligence">Intelligence</option>
-                                    <option value="agility">Agility</option>
-                                    <option value="charisma">Charisma</option>
-                                </select>
-                                <div className="flex gap-2 items-center">
-                                    <button onClick={addTaskClass} className="flex-1 bg-indigo-600 text-white px-4 py-2 rounded-lg">Add Class</button>
-                                </div>
-                            </div>
 
-                            <div className="space-y-2">
-                                {taskClasses.map(c => (
-                                    <div key={c.id} className="flex items-center justify-between bg-slate-800 p-3 rounded border border-slate-700">
-                                        <div className="flex items-center gap-3">
-                                            <div className="w-8 h-8 rounded-full flex items-center justify-center" style={{ background: c.color }}>{c.name[0]}</div>
-                                            <div>
-                                                <div className="font-medium text-slate-100">{c.name}</div>
-                                                <div className="text-xs text-slate-400">{c.statType}</div>
-                                            </div>
-                                        </div>
-                                        <button onClick={() => deleteTaskClass(c.id)} className="text-rose-500 hover:text-rose-400">Delete</button>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
                     </div>
                 )}
 
