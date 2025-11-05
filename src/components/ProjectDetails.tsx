@@ -1,4 +1,3 @@
-﻿import React from 'react';
 import type { Project, Task, TaskClass, Skill } from '../refactored-src/types';
 import { sortTasks } from '../refactored-src/utils/taskUtils';
 import { formatShortDate } from '../refactored-src/utils/dateUtils';
@@ -235,4 +234,5 @@ export function ProjectDetails({
             </div>
         </div>
     );
+
 }
