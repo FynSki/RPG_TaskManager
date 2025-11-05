@@ -234,6 +234,9 @@ export default function App() {
     const [isSkillPanelOpen, setIsSkillPanelOpen] = useState(false);
     const [isTaskClassPanelOpen, setIsTaskClassPanelOpen] = useState(false);
 
+    // Project details view state
+    const [selectedProject, setSelectedProject] = useState<Project | null>(null);
+
     // Task form state
     const [taskName, setTaskName] = useState("");
     const [taskDescription, setTaskDescription] = useState("");
@@ -517,153 +520,157 @@ export default function App() {
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-slate-100 p-2 sm:p-4">
             <div className="max-w-7xl mx-auto">
-                {/* Top Bar */}
-                <div className="bg-slate-800 rounded-xl shadow-xl p-3 sm:p-4 md:p-6 mb-4 border border-slate-700 sticky top-0 z-50 backdrop-blur-md bg-slate-800/90">
-                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
-                        <div className="flex items-center gap-3 sm:gap-4 w-full sm:w-auto">
-                            <div className="text-4xl sm:text-5xl flex-shrink-0">{character.avatar}</div>
-                            <div className="flex-1 min-w-0">
-                                <h1 className="text-xl sm:text-2xl md:text-3xl font-bold bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent truncate">
-                                    {character.name}
-                                </h1>
-                                <p className="text-slate-400 text-xs sm:text-sm">Level {character.level} Adventurer</p>
+                {/* Top Bar - ukryty gdy Project Details jest aktywny */}
+                {!selectedProject && (
+                    <div className="bg-slate-800 rounded-xl shadow-xl p-3 sm:p-4 md:p-6 mb-4 border border-slate-700 sticky top-0 z-50 backdrop-blur-md bg-slate-800/90">
+                        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
+                            <div className="flex items-center gap-3 sm:gap-4 w-full sm:w-auto">
+                                <div className="text-4xl sm:text-5xl flex-shrink-0">{character.avatar}</div>
+                                <div className="flex-1 min-w-0">
+                                    <h1 className="text-xl sm:text-2xl md:text-3xl font-bold bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent truncate">
+                                        {character.name}
+                                    </h1>
+                                    <p className="text-slate-400 text-xs sm:text-sm">Level {character.level} Adventurer</p>
 
-                                {/* Mini stats bar */}
-                                <div className="flex flex-wrap gap-3 mt-2 text-slate-300 text-sm">
-                                    <span>💪 {character.strength}</span>
-                                    <span>🏃 {character.endurance}</span>
-                                    <span>🧠 {character.intelligence}</span>
-                                    <span>⚡ {character.agility}</span>
-                                    <span>✨ {character.charisma}</span>
+                                    {/* Mini stats bar */}
+                                    <div className="flex flex-wrap gap-3 mt-2 text-slate-300 text-sm">
+                                        <span>💪 {character.strength}</span>
+                                        <span>🏃 {character.endurance}</span>
+                                        <span>🧠 {character.intelligence}</span>
+                                        <span>⚡ {character.agility}</span>
+                                        <span>✨ {character.charisma}</span>
+                                    </div>
                                 </div>
                             </div>
+                            <div className="w-full sm:w-48 md:w-64">
+                                <div className="flex justify-between text-xs sm:text-sm mb-1">
+                                    <span className="text-slate-400">XP</span>
+                                    <span className="text-indigo-400 font-semibold">
+                                        {character.xp} / {xpForNextLevel}
+                                    </span>
+                                </div>
+                                <ProgressBar value={character.xp} max={xpForNextLevel} />
+                            </div>
                         </div>
-                        <div className="w-full sm:w-48 md:w-64">
-                            <div className="flex justify-between text-xs sm:text-sm mb-1">
-                                <span className="text-slate-400">XP</span>
-                                <span className="text-indigo-400 font-semibold">
-                                    {character.xp} / {xpForNextLevel}
+                    </div>
+                )}
+
+                {/* Navigation - ukryta gdy Project Details jest aktywny */}
+                {!selectedProject && (
+                    <div className="bg-slate-800 rounded-xl shadow-xl border border-slate-700 mb-4">
+                        {/* Mobile: Hamburger + Current View */}
+                        <div className="lg:hidden flex items-center justify-between p-4">
+                            <div className="flex items-center gap-2">
+                                <span className="text-2xl">
+                                    {view === "daily" && "📅"}
+                                    {view === "weekly" && "📊"}
+                                    {view === "monthly" && "📆"}
+                                    {view === "all" && "📋"}
+                                    {view === "projects" && "🎯"}
+                                    {view === "character" && "⚔️"}
+                                    {view === "activeTasks" && "🔥"}
+                                    {view === "settings" && "⚙️"}
+                                </span>
+                                <span className="font-semibold text-lg">
+                                    {view === "daily" && "Daily"}
+                                    {view === "weekly" && "Weekly"}
+                                    {view === "monthly" && "Monthly"}
+                                    {view === "all" && "All Tasks"}
+                                    {view === "projects" && "Projects"}
+                                    {view === "character" && "Character"}
+                                    {view === "activeTasks" && "Active Tasks"}
+                                    {view === "settings" && "Settings"}
                                 </span>
                             </div>
-                            <ProgressBar value={character.xp} max={xpForNextLevel} />
-                        </div>
-                    </div>
-                </div>
-
-                {/* Navigation */}
-                <div className="bg-slate-800 rounded-xl shadow-xl border border-slate-700 mb-4">
-                    {/* Mobile: Hamburger + Current View */}
-                    <div className="lg:hidden flex items-center justify-between p-4">
-                        <div className="flex items-center gap-2">
-                            <span className="text-2xl">
-                                {view === "daily" && "📅"}
-                                {view === "weekly" && "📊"}
-                                {view === "monthly" && "📆"}
-                                {view === "all" && "📋"}
-                                {view === "projects" && "🎯"}
-                                {view === "character" && "⚔️"}
-                                {view === "activeTasks" && "🔥"}
-                                {view === "settings" && "⚙️"}
-                            </span>
-                            <span className="font-semibold text-lg">
-                                {view === "daily" && "Daily"}
-                                {view === "weekly" && "Weekly"}
-                                {view === "monthly" && "Monthly"}
-                                {view === "all" && "All Tasks"}
-                                {view === "projects" && "Projects"}
-                                {view === "character" && "Character"}
-                                {view === "activeTasks" && "Active Tasks"}
-                                {view === "settings" && "Settings"}
-                            </span>
-                        </div>
-                        <button
-                            onClick={() => setShowMobileMenu(!showMobileMenu)}
-                            className="p-2 rounded-lg bg-slate-900 hover:bg-slate-700 transition"
-                        >
-                            <svg
-                                className="w-6 h-6"
-                                fill="none"
-                                stroke="currentColor"
-                                viewBox="0 0 24 24"
+                            <button
+                                onClick={() => setShowMobileMenu(!showMobileMenu)}
+                                className="p-2 rounded-lg bg-slate-900 hover:bg-slate-700 transition"
                             >
-                                {showMobileMenu ? (
-                                    <path
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                        strokeWidth={2}
-                                        d="M6 18L18 6M6 6l12 12"
-                                    />
-                                ) : (
-                                    <path
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                        strokeWidth={2}
-                                        d="M4 6h16M4 12h16M4 18h16"
-                                    />
-                                )}
-                            </svg>
-                        </button>
-                    </div>
-
-                    {/* Mobile Menu Dropdown */}
-                    {showMobileMenu && (
-                        <div className="lg:hidden border-t border-slate-700 p-2 space-y-1">
-                            {[
-                                { id: "character", label: "Character", icon: "⚔️" },
-                                { id: "activeTasks", label: "Active Tasks", icon: "🔥" },
-                                { id: "daily", label: "Daily", icon: "📅" },
-                                { id: "weekly", label: "Weekly", icon: "📊" },
-                                { id: "monthly", label: "Monthly", icon: "📆" },
-                                { id: "all", label: "All", icon: "📋" },
-                                { id: "projects", label: "Projects", icon: "🎯" },
-                                { id: "settings", label: "Settings", icon: "⚙️" },
-                            ].map(item => (
-                                <button
-                                    key={item.id}
-                                    onClick={() => {
-                                        setView(item.id as any);
-                                        setShowMobileMenu(false);
-                                    }}
-                                    className={`w-full text-left px-4 py-3 rounded-lg font-medium transition-all ${view === item.id
-                                        ? "bg-indigo-600 text-white shadow-lg"
-                                        : "bg-slate-900 text-slate-300 hover:bg-slate-700"
-                                        }`}
+                                <svg
+                                    className="w-6 h-6"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    viewBox="0 0 24 24"
                                 >
-                                    <span className="mr-2">{item.icon}</span>
-                                    {item.label}
-                                </button>
-                            ))}
+                                    {showMobileMenu ? (
+                                        <path
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                            strokeWidth={2}
+                                            d="M6 18L18 6M6 6l12 12"
+                                        />
+                                    ) : (
+                                        <path
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                            strokeWidth={2}
+                                            d="M4 6h16M4 12h16M4 18h16"
+                                        />
+                                    )}
+                                </svg>
+                            </button>
                         </div>
-                    )}
 
-                    {/* Desktop: Horizontal Menu */}
-                    <div className="hidden lg:block p-2 overflow-x-auto">
-                        <div className="flex gap-2">
-                            {[
-                                { id: "character", label: "Character", icon: "⚔️" },
-                                { id: "activeTasks", label: "Active Tasks", icon: "🔥" },
-                                { id: "daily", label: "Daily", icon: "📅" },
-                                { id: "weekly", label: "Weekly", icon: "📊" },
-                                { id: "monthly", label: "Monthly", icon: "📆" },
-                                { id: "all", label: "All", icon: "📋" },
-                                { id: "projects", label: "Projects", icon: "🎯" },
-                                { id: "settings", label: "Settings", icon: "⚙️" },
-                            ].map(item => (
-                                <button
-                                    key={item.id}
-                                    onClick={() => setView(item.id as any)}
-                                    className={`px-4 py-3 rounded-lg font-medium transition-all whitespace-nowrap ${view === item.id
-                                        ? "bg-indigo-600 text-white shadow-lg"
-                                        : "bg-slate-900 text-slate-300 hover:bg-slate-700"
-                                        }`}
-                                >
-                                    <span className="mr-2">{item.icon}</span>
-                                    {item.label}
-                                </button>
-                            ))}
+                        {/* Mobile Menu Dropdown */}
+                        {showMobileMenu && (
+                            <div className="lg:hidden border-t border-slate-700 p-2 space-y-1">
+                                {[
+                                    { id: "character", label: "Character", icon: "⚔️" },
+                                    { id: "activeTasks", label: "Active Tasks", icon: "🔥" },
+                                    { id: "daily", label: "Daily", icon: "📅" },
+                                    { id: "weekly", label: "Weekly", icon: "📊" },
+                                    { id: "monthly", label: "Monthly", icon: "📆" },
+                                    { id: "all", label: "All", icon: "📋" },
+                                    { id: "projects", label: "Projects", icon: "🎯" },
+                                    { id: "settings", label: "Settings", icon: "⚙️" },
+                                ].map(item => (
+                                    <button
+                                        key={item.id}
+                                        onClick={() => {
+                                            setView(item.id as any);
+                                            setShowMobileMenu(false);
+                                        }}
+                                        className={`w-full text-left px-4 py-3 rounded-lg font-medium transition-all ${view === item.id
+                                            ? "bg-indigo-600 text-white shadow-lg"
+                                            : "bg-slate-900 text-slate-300 hover:bg-slate-700"
+                                            }`}
+                                    >
+                                        <span className="mr-2">{item.icon}</span>
+                                        {item.label}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+
+                        {/* Desktop: Horizontal Menu */}
+                        <div className="hidden lg:block p-2 overflow-x-auto">
+                            <div className="flex gap-2">
+                                {[
+                                    { id: "character", label: "Character", icon: "⚔️" },
+                                    { id: "activeTasks", label: "Active Tasks", icon: "🔥" },
+                                    { id: "daily", label: "Daily", icon: "📅" },
+                                    { id: "weekly", label: "Weekly", icon: "📊" },
+                                    { id: "monthly", label: "Monthly", icon: "📆" },
+                                    { id: "all", label: "All", icon: "📋" },
+                                    { id: "projects", label: "Projects", icon: "🎯" },
+                                    { id: "settings", label: "Settings", icon: "⚙️" },
+                                ].map(item => (
+                                    <button
+                                        key={item.id}
+                                        onClick={() => setView(item.id as any)}
+                                        className={`px-4 py-3 rounded-lg font-medium transition-all whitespace-nowrap ${view === item.id
+                                            ? "bg-indigo-600 text-white shadow-lg"
+                                            : "bg-slate-900 text-slate-300 hover:bg-slate-700"
+                                            }`}
+                                    >
+                                        <span className="mr-2">{item.icon}</span>
+                                        {item.label}
+                                    </button>
+                                ))}
+                            </div>
                         </div>
                     </div>
-                </div>
+                )}
 
                 {/* Daily View */}
                 {view === "daily" && (
@@ -1936,12 +1943,185 @@ export default function App() {
                                                 ))}
                                                 {projectTasks.length > 3 && <p className="text-xs text-slate-400">+{projectTasks.length - 3} more...</p>}
                                             </div>
+
+                                            {/* View Details Button */}
+                                            <button
+                                                onClick={() => setSelectedProject(project)}
+                                                className="w-full mt-3 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition text-sm font-medium"
+                                            >
+                                                View All Quests →
+                                            </button>
                                         </div>
                                     </div>
                                 );
                             })}
                         </div>
 
+                        {/* Project Details View - pokazuje się gdy projekt jest wybrany */}
+                        {selectedProject && (
+                            <div className="fixed inset-0 bg-slate-900 z-40 overflow-y-auto">
+                                <div className="max-w-7xl mx-auto p-4 sm:p-6">
+                                    {/* Header with Back Button */}
+                                    <div className="mb-6">
+                                        <button
+                                            onClick={() => setSelectedProject(null)}
+                                            className="flex items-center gap-2 text-slate-400 hover:text-white transition mb-4"
+                                        >
+                                            <span className="text-xl">←</span>
+                                            <span>Back to Projects</span>
+                                        </button>
+
+                                        <div className="bg-slate-800 rounded-xl p-6 border-l-4 border border-slate-700" style={{ borderLeftColor: selectedProject.color }}>
+                                            <h1 className="text-3xl font-bold mb-2" style={{ color: selectedProject.color }}>
+                                                {selectedProject.name}
+                                            </h1>
+                                            <p className="text-slate-300 mb-4">{selectedProject.description}</p>
+
+                                            {/* Stats */}
+                                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                                {(() => {
+                                                    const projectTasks = tasks.filter(t => t.projectId === selectedProject.id);
+                                                    const completedTasks = projectTasks.filter(t => t.completed);
+                                                    const activeTasks = projectTasks.filter(t => !t.completed);
+                                                    const totalXP = projectTasks.reduce((sum, t) => sum + (t.completed ? t.xpReward : 0), 0);
+
+                                                    return (
+                                                        <>
+                                                            <div className="bg-slate-900 rounded-lg p-4 border border-slate-700">
+                                                                <div className="text-2xl font-bold text-slate-100">{projectTasks.length}</div>
+                                                                <div className="text-sm text-slate-400">Total Quests</div>
+                                                            </div>
+                                                            <div className="bg-slate-900 rounded-lg p-4 border border-slate-700">
+                                                                <div className="text-2xl font-bold text-indigo-400">{activeTasks.length}</div>
+                                                                <div className="text-sm text-slate-400">Active</div>
+                                                            </div>
+                                                            <div className="bg-slate-900 rounded-lg p-4 border border-slate-700">
+                                                                <div className="text-2xl font-bold text-green-400">{completedTasks.length}</div>
+                                                                <div className="text-sm text-slate-400">Completed</div>
+                                                            </div>
+                                                            <div className="bg-slate-900 rounded-lg p-4 border border-slate-700">
+                                                                <div className="text-2xl font-bold text-yellow-400">{totalXP}</div>
+                                                                <div className="text-sm text-slate-400">XP Earned</div>
+                                                            </div>
+                                                        </>
+                                                    );
+                                                })()}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Tasks List */}
+                                    <div className="bg-slate-800 rounded-xl p-6 border border-slate-700">
+                                        <div className="flex justify-between items-center mb-6">
+                                            <h2 className="text-2xl font-semibold">All Quests</h2>
+                                            <button
+                                                onClick={() => {
+                                                    setTaskProjectId(selectedProject.id);
+                                                    openTaskModal();
+                                                }}
+                                                className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg transition"
+                                            >
+                                                + Add Quest
+                                            </button>
+                                        </div>
+
+                                        <div className="space-y-3">
+                                            {(() => {
+                                                const projectTasks = sortTasks(tasks.filter(t => t.projectId === selectedProject.id));
+
+                                                if (projectTasks.length === 0) {
+                                                    return (
+                                                        <div className="text-center py-12 text-slate-400">
+                                                            <p className="text-lg mb-2">No quests in this project yet</p>
+                                                            <p className="text-sm">Click "Add Quest" to create your first quest!</p>
+                                                        </div>
+                                                    );
+                                                }
+
+                                                return projectTasks.map(task => {
+                                                    const taskClass = task.classId ? taskClasses.find(c => c.id === task.classId) : null;
+                                                    const skill = task.skillId ? skills.find(s => s.id === task.skillId) : null;
+
+                                                    return (
+                                                        <div
+                                                            key={task.id}
+                                                            onClick={(e) => {
+                                                                if ((e.target as HTMLElement).tagName !== 'INPUT') {
+                                                                    openEditModal(task);
+                                                                }
+                                                            }}
+                                                            className={`bg-slate-900 rounded-lg p-4 border border-slate-700 cursor-pointer hover:border-slate-600 transition ${task.completed ? 'opacity-60' : ''}`}
+                                                        >
+                                                            <div className="flex items-start gap-4">
+                                                                <input
+                                                                    type="checkbox"
+                                                                    checked={task.completed}
+                                                                    onChange={() => toggleTask(task.id)}
+                                                                    className="mt-1 w-5 h-5 rounded border-slate-600 text-indigo-600 focus:ring-indigo-500"
+                                                                />
+                                                                <div className="flex-1">
+                                                                    <h3 className={`text-lg font-semibold ${task.completed ? 'line-through text-slate-500' : ''}`}>
+                                                                        {task.name}
+                                                                    </h3>
+                                                                    {task.description && (
+                                                                        <p className="text-sm text-slate-400 mt-1">{task.description}</p>
+                                                                    )}
+                                                                    <div className="flex flex-wrap gap-2 mt-3">
+                                                                        <span className="text-xs px-3 py-1 rounded-full bg-indigo-900 text-indigo-300 border border-indigo-700">
+                                                                            {task.xpReward} XP
+                                                                        </span>
+                                                                        {task.priority && <RarityBadge rarity={task.priority} />}
+                                                                        {task.dueDate && (
+                                                                            <span className="text-xs px-3 py-1 rounded-full bg-slate-700 text-slate-300 border border-slate-600">
+                                                                                📅 {formatShortDate(task.dueDate)}
+                                                                            </span>
+                                                                        )}
+                                                                        {task.isFlexible && (
+                                                                            <span className="text-xs px-3 py-1 rounded-full bg-teal-900 text-teal-300 border border-teal-700">
+                                                                                🕐 Flexible
+                                                                            </span>
+                                                                        )}
+                                                                        {task.isRecurring && (
+                                                                            <span className="text-xs px-3 py-1 rounded-full bg-purple-900 text-purple-300 border border-purple-700">
+                                                                                🔄 {task.recurringType}
+                                                                            </span>
+                                                                        )}
+                                                                        {taskClass && (
+                                                                            <span
+                                                                                className="text-xs px-3 py-1 rounded-full border"
+                                                                                style={{
+                                                                                    borderColor: taskClass.color,
+                                                                                    color: taskClass.color,
+                                                                                    backgroundColor: `${taskClass.color}20`,
+                                                                                }}
+                                                                            >
+                                                                                {taskClass.name}
+                                                                            </span>
+                                                                        )}
+                                                                        {skill && (
+                                                                            <span
+                                                                                className="text-xs px-3 py-1 rounded-full border"
+                                                                                style={{
+                                                                                    borderColor: skill.color,
+                                                                                    color: skill.color,
+                                                                                    backgroundColor: `${skill.color}20`,
+                                                                                }}
+                                                                            >
+                                                                                {skill.name}
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                });
+                                            })()}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
 
                     </div>
                 )}
