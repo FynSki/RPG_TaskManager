@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { AboutPage } from './components/AboutPage';
+import { DataManagement } from './components/DataManagement';
 
 /**
  * TaskQuest - Gamified Task Management Application
@@ -236,6 +237,9 @@ export default function App() {
 
     // Project details view state
     const [selectedProject, setSelectedProject] = useState<Project | null>(null);
+
+    // Premium feature flag - Projects are premium-only
+    const [isPremium] = useState(false); // Set to true to enable Projects
 
     // Task form state
     const [taskName, setTaskName] = useState("");
@@ -623,22 +627,24 @@ export default function App() {
                                     { id: "all", label: "All", icon: "📋" },
                                     { id: "projects", label: "Projects", icon: "🎯" },
                                     { id: "settings", label: "Settings", icon: "⚙️" },
-                                ].map(item => (
-                                    <button
-                                        key={item.id}
-                                        onClick={() => {
-                                            setView(item.id as any);
-                                            setShowMobileMenu(false);
-                                        }}
-                                        className={`w-full text-left px-4 py-3 rounded-lg font-medium transition-all ${view === item.id
-                                            ? "bg-indigo-600 text-white shadow-lg"
-                                            : "bg-slate-900 text-slate-300 hover:bg-slate-700"
-                                            }`}
-                                    >
-                                        <span className="mr-2">{item.icon}</span>
-                                        {item.label}
-                                    </button>
-                                ))}
+                                ]
+                                    .filter(item => item.id !== "projects" || isPremium) // Hide Projects if not premium
+                                    .map(item => (
+                                        <button
+                                            key={item.id}
+                                            onClick={() => {
+                                                setView(item.id as any);
+                                                setShowMobileMenu(false);
+                                            }}
+                                            className={`w-full text-left px-4 py-3 rounded-lg font-medium transition-all ${view === item.id
+                                                ? "bg-indigo-600 text-white shadow-lg"
+                                                : "bg-slate-900 text-slate-300 hover:bg-slate-700"
+                                                }`}
+                                        >
+                                            <span className="mr-2">{item.icon}</span>
+                                            {item.label}
+                                        </button>
+                                    ))}
                             </div>
                         )}
 
@@ -654,19 +660,21 @@ export default function App() {
                                     { id: "all", label: "All", icon: "📋" },
                                     { id: "projects", label: "Projects", icon: "🎯" },
                                     { id: "settings", label: "Settings", icon: "⚙️" },
-                                ].map(item => (
-                                    <button
-                                        key={item.id}
-                                        onClick={() => setView(item.id as any)}
-                                        className={`px-4 py-3 rounded-lg font-medium transition-all whitespace-nowrap ${view === item.id
-                                            ? "bg-indigo-600 text-white shadow-lg"
-                                            : "bg-slate-900 text-slate-300 hover:bg-slate-700"
-                                            }`}
-                                    >
-                                        <span className="mr-2">{item.icon}</span>
-                                        {item.label}
-                                    </button>
-                                ))}
+                                ]
+                                    .filter(item => item.id !== "projects" || isPremium) // Hide Projects if not premium
+                                    .map(item => (
+                                        <button
+                                            key={item.id}
+                                            onClick={() => setView(item.id as any)}
+                                            className={`px-4 py-3 rounded-lg font-medium transition-all whitespace-nowrap ${view === item.id
+                                                ? "bg-indigo-600 text-white shadow-lg"
+                                                : "bg-slate-900 text-slate-300 hover:bg-slate-700"
+                                                }`}
+                                        >
+                                            <span className="mr-2">{item.icon}</span>
+                                            {item.label}
+                                        </button>
+                                    ))}
                             </div>
                         </div>
                     </div>
@@ -1846,6 +1854,24 @@ export default function App() {
                         </div>
 
                         <div className="space-y-6">
+                            {/* Data Management - Export/Import */}
+                            <DataManagement
+                                tasks={tasks}
+                                character={character}
+                                projects={projects}
+                                skills={skills}
+                                taskClasses={taskClasses}
+                                recurringCompletions={recurringCompletions}
+                                onImport={(data) => {
+                                    setTasks(data.tasks);
+                                    setCharacter(data.character);
+                                    setProjects(data.projects);
+                                    setSkills(data.skills);
+                                    setTaskClasses(data.taskClasses);
+                                    setRecurringCompletions(data.recurringCompletions);
+                                }}
+                            />
+
                             <div className="bg-rose-900 rounded-xl p-6 border border-rose-700">
                                 <h3 className="text-xl font-semibold text-rose-100 mb-2">Danger Zone</h3>
                                 <p className="text-rose-200 text-sm mb-4">
@@ -2208,21 +2234,24 @@ export default function App() {
                                     </div>
                                 )}
 
-                                <div>
-                                    <label className="block text-sm font-medium mb-2">Project (Optional)</label>
-                                    <select
-                                        value={taskProjectId}
-                                        onChange={(e) => setTaskProjectId(e.target.value)}
-                                        className="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-lg text-slate-100"
-                                    >
-                                        <option value="">No Project</option>
-                                        {projects.map(p => (
-                                            <option key={p.id} value={p.id}>
-                                                {p.name}
-                                            </option>
-                                        ))}
-                                    </select>
-                                </div>
+                                {/* Project selector - Premium only */}
+                                {isPremium && (
+                                    <div>
+                                        <label className="block text-sm font-medium mb-2">Project (Optional)</label>
+                                        <select
+                                            value={taskProjectId}
+                                            onChange={(e) => setTaskProjectId(e.target.value)}
+                                            className="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-lg text-slate-100"
+                                        >
+                                            <option value="">No Project</option>
+                                            {projects.map(p => (
+                                                <option key={p.id} value={p.id}>
+                                                    {p.name}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                )}
 
                                 <div>
                                     <label className="block text-sm font-medium mb-2">Task Class (Optional)</label>
