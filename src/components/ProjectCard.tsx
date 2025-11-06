@@ -1,3 +1,4 @@
+
 import type { Project, Task } from '../refactored-src/types';
 
 interface ProjectCardProps {
@@ -120,5 +121,4 @@ export function ProjectCard({ project, tasks, onViewDetails, onDelete }: Project
             </div>
         </div>
     );
-
 }
