@@ -912,9 +912,9 @@ export default function App() {
                 {/* Monthly View */}
                 {view === "monthly" && (
                     <div className="bg-slate-800 rounded-xl shadow p-4 sm:p-6 border border-slate-700 max-w-7xl mx-auto">
-                        <div className="flex justify-between items-center mb-6">
+                        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-6">
                             <h2 className="text-2xl font-semibold">Monthly Quests</h2>
-                            <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-2 sm:gap-3 justify-center">
                                 <button
                                     onClick={goToPreviousMonth}
                                     className="px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-slate-100 hover:bg-slate-700 transition"
@@ -926,7 +926,7 @@ export default function App() {
                                     type="month"
                                     value={selectedMonth}
                                     onChange={(e) => setSelectedMonth(e.target.value)}
-                                    className="px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-slate-100"
+                                    className="px-2 sm:px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-slate-100 text-sm sm:text-base"
                                 />
                                 <button
                                     onClick={goToNextMonth}
@@ -939,14 +939,14 @@ export default function App() {
                         </div>
 
                         <div className="mb-4">
-                            <div className="grid grid-cols-7 gap-2 text-center text-sm font-semibold text-slate-400 mb-2">
+                            <div className="grid grid-cols-7 gap-1 sm:gap-2 text-center text-xs sm:text-sm font-semibold text-slate-400 mb-2">
                                 {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map(day => (
                                     <div key={day}>{day}</div>
                                 ))}
                             </div>
                         </div>
 
-                        <div className="grid grid-cols-7 gap-2">
+                        <div className="grid grid-cols-7 gap-1 sm:gap-2">
                             {monthDates.map((date, idx) => {
                                 if (!date)
                                     return <div key={`empty-${idx}`} className="aspect-square bg-slate-900 rounded-lg" />;
@@ -958,40 +958,41 @@ export default function App() {
                                 return (
                                     <div
                                         key={date}
-                                        className={`aspect-square bg-slate-900 rounded-lg p-2 border flex flex-col ${isToday ? "border-indigo-500 ring-2 ring-indigo-500" : "border-slate-700"
+                                        className={`aspect-square bg-slate-900 rounded-lg p-1 sm:p-2 border flex flex-col ${isToday ? "border-indigo-500 ring-1 sm:ring-2 ring-indigo-500" : "border-slate-700"
                                             }`}
                                     >
-                                        <div className={`text-sm font-semibold mb-1 ${isToday ? "text-indigo-400" : ""}`}>
+                                        <div className={`text-xs sm:text-sm font-semibold mb-0.5 sm:mb-1 ${isToday ? "text-indigo-400" : ""}`}>
                                             {date.split("-")[2]}
                                         </div>
-                                        <div className="flex-1 space-y-1 overflow-y-auto">
+                                        <div className="flex-1 space-y-0.5 sm:space-y-1 overflow-y-auto">
                                             {dayTasks.slice(0, 2).map(task => {
                                                 const isCompleted = isTaskCompletedOnDate(task, date, recurringCompletions);
                                                 return (
                                                     <div
                                                         key={task.id}
                                                         onClick={() => openEditModal(task)}
-                                                        className={`text-xs truncate cursor-pointer hover:text-indigo-400 transition ${isCompleted ? "line-through text-slate-500" : "text-slate-300"
+                                                        className={`text-[0.6rem] sm:text-xs truncate cursor-pointer hover:text-indigo-400 transition ${isCompleted ? "line-through text-slate-500" : "text-slate-300"
                                                             }`}
+                                                        title={task.name}
                                                     >
                                                         {task.name}
                                                     </div>
                                                 );
                                             })}
                                             {dayTasks.length > 2 && (
-                                                <div className="text-xs text-slate-500">+{dayTasks.length - 2}</div>
+                                                <div className="text-[0.6rem] sm:text-xs text-slate-500">+{dayTasks.length - 2}</div>
                                             )}
                                         </div>
 
                                         <button
                                             onClick={() => openTaskModal(date)}
-                                            className="w-full mt-3 text-xs py-2 bg-slate-800 hover:bg-slate-700 rounded border border-slate-700"
+                                            className="w-full mt-1 sm:mt-3 text-[0.6rem] sm:text-xs py-1 sm:py-2 bg-slate-800 hover:bg-slate-700 rounded border border-slate-700"
                                         >
                                             + Add
                                         </button>
 
                                         {dayTasks.length > 0 && (
-                                            <div className="text-xs text-slate-400 mt-1">
+                                            <div className="text-[0.6rem] sm:text-xs text-slate-400 mt-0.5 sm:mt-1">
                                                 {completedCount}/{dayTasks.length}
                                             </div>
                                         )}
