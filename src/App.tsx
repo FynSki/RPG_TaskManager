@@ -290,7 +290,7 @@ export default function App() {
     const sortedTodayTasks = sortTasks(todayTasks.filter(t => !t.completed)); // Only show active tasks
     const sortedTomorrowTasks = sortTasks(tasks.filter(t => !t.completed && t.dueDate === tomorrow && !t.isRecurring));
     //const sortedFlexibleTasks = sortTasks(tasks.filter(t => !t.completed && t.isFlexible));
-    //const sortedRecurringTasks = sortTasks(tasks.filter(t => t.isRecurring && (!t.recurringEndDate || t.recurringEndDate >= today)));
+    const sortedRecurringTasks = sortTasks(tasks.filter(t => t.isRecurring && (!t.recurringEndDate || t.recurringEndDate >= today)));
     const sortedBacklogTasks = sortTasks(tasks.filter(t => !t.completed && t.dueDate && t.dueDate < today && !t.isRecurring));
     const sortedNoDueDateTasks = sortTasks(tasks.filter(t => !t.completed && !t.dueDate && !t.isRecurring));
 
@@ -566,14 +566,28 @@ export default function App() {
                                     </div>
                                 </div>
                             </div>
-                            <div className="w-full sm:w-48 md:w-64">
-                                <div className="flex justify-between text-xs sm:text-sm mb-1">
-                                    <span className="text-slate-400">XP</span>
-                                    <span className="text-indigo-400 font-semibold">
-                                        {character.xp} / {xpForNextLevel}
-                                    </span>
+
+                            {/* Right side: XP Bar + About Button */}
+                            <div className="flex items-center gap-3 w-full sm:w-auto">
+                                {/* XP Progress */}
+                                <div className="flex-1 sm:w-48 md:w-64">
+                                    <div className="flex justify-between text-xs sm:text-sm mb-1">
+                                        <span className="text-slate-400">XP</span>
+                                        <span className="text-indigo-400 font-semibold">
+                                            {character.xp} / {xpForNextLevel}
+                                        </span>
+                                    </div>
+                                    <ProgressBar value={character.xp} max={xpForNextLevel} />
                                 </div>
-                                <ProgressBar value={character.xp} max={xpForNextLevel} />
+
+                                {/* About Button - Always Visible (desktop) */}
+                                <button
+                                    onClick={() => setShowAboutPage(true)}
+                                    className="relative w-12 h-12 rounded-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white transition flex items-center justify-center shadow-lg hover:shadow-xl group"
+                                >
+                                    <span className="text-xl group-hover:rotate-12 transition-transform">ℹ️</span>
+                                    <span className="absolute inset-0 rounded-full bg-indigo-500 animate-ping opacity-20"></span>
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -1775,13 +1789,13 @@ export default function App() {
                     <div className="bg-slate-800 rounded-xl shadow p-4 sm:p-6 border border-slate-700 max-w-7xl mx-auto">
                         <div className="flex justify-between items-center mb-6">
                             <h2 className="text-2xl font-semibold">Settings</h2>
-                            {/* NOWE: Ikona informacyjna */}
+                            {/* About Button - Mobile backup (hidden on desktop as it's in top bar) */}
                             <button
                                 onClick={() => setShowAboutPage(true)}
-                                className="w-10 h-10 rounded-full bg-slate-900 border border-slate-700 hover:border-indigo-500 transition flex items-center justify-center text-xl"
-                                title="Information"
+                                className="sm:hidden bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white px-4 py-2 rounded-lg transition flex items-center gap-2 shadow-lg"
                             >
-                                ℹ️
+                                <span>ℹ️</span>
+                                <span className="font-semibold">About</span>
                             </button>
                         </div>
 
