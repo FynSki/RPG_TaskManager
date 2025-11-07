@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { AboutPage } from './components/AboutPage';
 import { DataManagement } from './components/DataManagement';
+import { MinimalOnboarding } from './components/MinimalOnboarding';
 
 /**
  * TaskQuest - Gamified Task Management Application
@@ -231,6 +232,12 @@ export default function App() {
     const [showMobileMenu, setShowMobileMenu] = useState(false);
     const [showStatInfo, setShowStatInfo] = useState<string | null>(null);
 
+    // Onboarding state - shows on first visit only
+    const [showOnboarding, setShowOnboarding] = useState(() => {
+        const hasSeenOnboarding = localStorage.getItem('hasSeenOnboarding');
+        return !hasSeenOnboarding;
+    });
+
     // Collapsible panels state
     const [isSkillPanelOpen, setIsSkillPanelOpen] = useState(false);
     const [isTaskClassPanelOpen, setIsTaskClassPanelOpen] = useState(false);
@@ -279,7 +286,8 @@ export default function App() {
 
     // Sorted task lists for different views
     const sortedDailyTasks = sortTasks(dailyTasks);
-    const sortedTodayTasks = sortTasks(tasks.filter(t => !t.completed && t.dueDate === today && !t.isRecurring));
+    const todayTasks = getTasksForDate(tasks, today); // Get all tasks for today INCLUDING recurring
+    const sortedTodayTasks = sortTasks(todayTasks.filter(t => !t.completed)); // Only show active tasks
     const sortedTomorrowTasks = sortTasks(tasks.filter(t => !t.completed && t.dueDate === tomorrow && !t.isRecurring));
     //const sortedFlexibleTasks = sortTasks(tasks.filter(t => !t.completed && t.isFlexible));
     const sortedRecurringTasks = sortTasks(tasks.filter(t => t.isRecurring && (!t.recurringEndDate || t.recurringEndDate >= today)));
@@ -513,6 +521,13 @@ export default function App() {
         setShowResetConfirm(false);
     }
 
+    // ========== ONBOARDING HANDLER ==========
+
+    function handleOnboardingComplete() {
+        localStorage.setItem('hasSeenOnboarding', 'true');
+        setShowOnboarding(false);
+    }
+
     // ========== RENDER ==========
 
     // Show About Page (fullscreen overlay)
@@ -523,6 +538,11 @@ export default function App() {
     // Note: The JSX render logic continues in the next part...
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-slate-100 p-2 sm:p-4">
+            {/* Welcome screen - shows on first visit only */}
+            {showOnboarding && (
+                <MinimalOnboarding onComplete={handleOnboardingComplete} />
+            )}
+
             <div className="max-w-7xl mx-auto">
                 {/* Top Bar - ukryty gdy Project Details jest aktywny */}
                 {!selectedProject && (
@@ -1152,7 +1172,7 @@ export default function App() {
                         <div className="flex justify-between items-center mb-6">
                             <div>
                                 <h2 className="text-2xl font-semibold">🔥 Active Tasks</h2>
-                                <p className="text-sm text-slate-400 mt-1">Today's tasks, overdue backlog, recurring tasks, flexible tasks, and tomorrow's planning</p>
+                                <p className="text-sm text-slate-400 mt-1">Today's tasks (including recurring), overdue backlog, flexible tasks, and tomorrow's planning</p>
                             </div>
                             <button
                                 onClick={() => openTaskModal()}
@@ -1269,95 +1289,6 @@ export default function App() {
                                                         <div className="flex flex-wrap gap-2 mt-3">
                                                             <span className="text-xs px-3 py-1 rounded-full bg-indigo-900 text-indigo-300 border border-indigo-700">
                                                                 {task.xpReward} XP
-                                                            </span>
-                                                            {task.priority && <RarityBadge rarity={task.priority} />}
-                                                            {project && (
-                                                                <span
-                                                                    className="text-xs px-3 py-1 rounded-full border"
-                                                                    style={{
-                                                                        borderColor: project.color,
-                                                                        color: project.color,
-                                                                        backgroundColor: `${project.color}20`,
-                                                                    }}
-                                                                >
-                                                                    {project.name}
-                                                                </span>
-                                                            )}
-                                                            {taskClass && (
-                                                                <span
-                                                                    className="text-xs px-3 py-1 rounded-full border"
-                                                                    style={{
-                                                                        borderColor: taskClass.color,
-                                                                        color: taskClass.color,
-                                                                        backgroundColor: `${taskClass.color}20`,
-                                                                    }}
-                                                                >
-                                                                    {taskClass.name}
-                                                                </span>
-                                                            )}
-                                                            {skill && (
-                                                                <span
-                                                                    className="text-xs px-3 py-1 rounded-full border"
-                                                                    style={{
-                                                                        borderColor: skill.color,
-                                                                        color: skill.color,
-                                                                        backgroundColor: `${skill.color}20`,
-                                                                    }}
-                                                                >
-                                                                    {skill.name}
-                                                                </span>
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        );
-                                    })
-                                )}
-                            </div>
-                        </div>
-
-
-
-
-                        {/* NOWE: Zadania powtarzalne - aktywne cały czas (bez końca lub jeszcze nieukończone) */}
-                        <div className="mb-6">
-                            <h3 className="text-lg font-semibold mb-3 text-purple-400">🔄 Recurring Tasks</h3>
-                            <div className="space-y-3">
-                                {sortedRecurringTasks.length === 0 ? (
-                                    <p className="text-slate-400 text-sm">No active recurring tasks</p>
-                                ) : (
-                                    sortedRecurringTasks.map(task => {
-                                        const project = task.projectId ? projects.find(p => p.id === task.projectId) : null;
-                                        const taskClass = task.classId ? taskClasses.find(c => c.id === task.classId) : null;
-                                        const skill = task.skillId ? skills.find(s => s.id === task.skillId) : null;
-                                        const isCompletedToday = isTaskCompletedOnDate(task, today, recurringCompletions);
-
-                                        return (
-                                            <div key={task.id} onClick={(e) => {
-                                                if ((e.target as HTMLElement).tagName !== 'INPUT') {
-                                                    openEditModal(task);
-                                                }
-                                            }} className={`bg-slate-900 rounded-lg p-4 border cursor-pointer transition ${isCompletedToday ? 'border-purple-700 opacity-60' : 'border-purple-700 hover:border-purple-600'}`}>
-                                                <div className="flex items-start gap-4">
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={isCompletedToday}
-                                                        onChange={() => toggleTask(task.id, today)}
-                                                        className="mt-1 w-5 h-5 rounded border-slate-600 text-purple-600 focus:ring-purple-500"
-                                                    />
-                                                    <div className="flex-1">
-                                                        <h3 className={`text-lg font-semibold ${isCompletedToday ? 'line-through text-slate-500' : ''}`}>{task.name}</h3>
-                                                        {task.description && (
-                                                            <p className="text-sm text-slate-400 mt-1">{task.description}</p>
-                                                        )}
-                                                        <div className="flex flex-wrap gap-2 mt-3">
-                                                            <span className="text-xs px-3 py-1 rounded-full bg-indigo-900 text-indigo-300 border border-indigo-700">
-                                                                {task.xpReward} XP
-                                                            </span>
-                                                            <span className="text-xs px-3 py-1 rounded-full bg-purple-900 text-purple-300 border border-purple-700">
-                                                                🔄 {task.recurringType}
-                                                                {task.recurringEndDate && ` (until ${formatShortDate(task.recurringEndDate)})`}
                                                             </span>
                                                             {task.priority && <RarityBadge rarity={task.priority} />}
                                                             {project && (
@@ -1884,6 +1815,22 @@ export default function App() {
                                 >
                                     Reset All Progress
                                 </button>
+
+                                {/* Show Welcome Screen Again */}
+                                <div className="mt-4 pt-4 border-t border-rose-700">
+                                    <p className="text-rose-200 text-sm mb-3">
+                                        Want to see the welcome screen again?
+                                    </p>
+                                    <button
+                                        onClick={() => {
+                                            localStorage.removeItem('hasSeenOnboarding');
+                                            setShowOnboarding(true);
+                                        }}
+                                        className="bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded-lg transition text-sm"
+                                    >
+                                        🎓 Show Welcome Screen
+                                    </button>
+                                </div>
                             </div>
 
                             {showResetConfirm && (
