@@ -28,7 +28,16 @@ export function LevelUpModal({ isOpen, onClose, levelUpData }: LevelUpModalProps
 
     const getEmoji = () => {
         if (levelUpData.type === 'character') return '⭐';
-        if (levelUpData.type === 'stat') return '💪';
+        if (levelUpData.type === 'stat') {
+            const emojis: Record<string, string> = {
+                Strength: '💪',
+                Endurance: '🏋️',
+                Intelligence: '🧠',
+                Agility: '⚡',
+                Charisma: '✨',
+            };
+            return emojis[levelUpData.name] || '📈';
+        }
         if (levelUpData.type === 'skill') return '⚔️';
         return '🎉';
     };
@@ -48,10 +57,13 @@ export function LevelUpModal({ isOpen, onClose, levelUpData }: LevelUpModalProps
             return `${levelUpData.name} increased to Level ${levelUpData.newLevel}!`;
         }
         if (levelUpData.type === 'skill') {
-            return `${levelUpData.name} reached Level ${levelUpData.newLevel}!`;
+            return `Your skill "${levelUpData.name}" advanced to Level ${levelUpData.newLevel}!`;
         }
         return '';
     };
+
+
+    
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
@@ -206,7 +218,6 @@ export function LevelUpModal({ isOpen, onClose, levelUpData }: LevelUpModalProps
     );
 
 }
-
 
 
 
