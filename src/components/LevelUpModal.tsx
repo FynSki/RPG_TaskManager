@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useState } from 'react';
+
 
 interface LevelUpModalProps {
     isOpen: boolean;
@@ -204,4 +204,5 @@ export function LevelUpModal({ isOpen, onClose, levelUpData }: LevelUpModalProps
             `}</style>
         </div>
     );
+
 }
