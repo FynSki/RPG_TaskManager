@@ -79,11 +79,7 @@ export function AboutPage({ onClose }: AboutPageProps) {
                                     title="Multiple Views"
                                     description="Daily, weekly, and monthly quest planning"
                                 />
-                                <FeatureCard
-                                    icon="📁"
-                                    title="Projects"
-                                    description="Organize tasks into projects"
-                                />
+                                
                                 <FeatureCard
                                     icon="🔄"
                                     title="Recurring Tasks"
