@@ -2,6 +2,8 @@ import { useState, useEffect } from "react";
 import { AboutPage } from './components/AboutPage';
 import { DataManagement } from './components/DataManagement';
 import { MinimalOnboarding } from './components/MinimalOnboarding';
+import { LevelUpModal } from './components/LevelUpModal';
+
 
 /**
  * TaskQuest - Gamified Task Management Application
@@ -294,6 +296,25 @@ export default function App() {
     const sortedBacklogTasks = sortTasks(tasks.filter(t => !t.completed && t.dueDate && t.dueDate < today && !t.isRecurring));
     const sortedNoDueDateTasks = sortTasks(tasks.filter(t => !t.completed && !t.dueDate && !t.isRecurring));
 
+    // === Level Up Modal Queue ===
+    type LevelUpData = {
+        type: 'character' | 'stat' | 'skill';
+        name: string;
+        oldLevel: number;
+        newLevel: number;
+        color?: string;
+    };
+
+    const [levelUpQueue, setLevelUpQueue] = useState<LevelUpData[]>([]);
+
+    function enqueueLevelUp(data: LevelUpData) {
+        setLevelUpQueue(prev => [...prev, data]);
+    }
+
+    function popLevelUp() {
+        setLevelUpQueue(prev => prev.slice(1));
+    }
+
     // ========== NAVIGATION FUNCTIONS ==========
 
     function goToPreviousWeek() {
@@ -434,9 +455,59 @@ export default function App() {
     }
 
     function handleAwardXP(xp: number, task: Task) {
+        const prevCharacter = { ...character };
+        const prevSkills = skills.map(s => ({ ...s }));
+
+        // wywołaj util awardXP
         const result = awardXPUtil(character, xp, task, taskClasses, skills);
-        setCharacter(result.character);
-        setSkills(result.skills);
+
+        const updatedCharacter: Character = result.character ?? result;
+        const updatedSkills: Skill[] = result.skills ?? skills;
+
+        // aktualizuj stan
+        setCharacter(updatedCharacter);
+        setSkills(updatedSkills);
+
+        // 🔹 sprawdź awans postaci
+        if (updatedCharacter.level > prevCharacter.level) {
+            enqueueLevelUp({
+                type: 'character',
+                name: updatedCharacter.name,
+                oldLevel: prevCharacter.level,
+                newLevel: updatedCharacter.level,
+                color: '#FF6B4A'
+            });
+        }
+
+        // 🔹 sprawdź wzrost statystyk (zależnie od utila)
+        const statKeys: StatType[] = ['strength', 'endurance', 'intelligence', 'agility', 'charisma'];
+        for (const stat of statKeys) {
+            const before = (prevCharacter as any)[stat] as number;
+            const after = (updatedCharacter as any)[stat] as number;
+            if (after > before) {
+                enqueueLevelUp({
+                    type: 'stat',
+                    name: stat.charAt(0).toUpperCase() + stat.slice(1),
+                    oldLevel: before,
+                    newLevel: after,
+                    color: '#10B981'
+                });
+            }
+        }
+
+        // 🔹 sprawdź awanse skilli (tylko jeśli wynik awardXP je zmienił)
+        for (const updatedSkill of updatedSkills) {
+            const prev = prevSkills.find(s => s.id === updatedSkill.id);
+            if (prev && updatedSkill.level > prev.level) {
+                enqueueLevelUp({
+                    type: 'skill',
+                    name: updatedSkill.name,
+                    oldLevel: prev.level,
+                    newLevel: updatedSkill.level,
+                    color: updatedSkill.color
+                });
+            }
+        }
     }
 
     // ========== CHARACTER STAT FUNCTIONS ==========
@@ -2491,6 +2562,13 @@ export default function App() {
                     </div>
                 )}
             </div>
+            {levelUpQueue.length > 0 && (
+                <LevelUpModal
+                    isOpen={true}
+                    onClose={() => popLevelUp()}
+                    levelUpData={levelUpQueue[0]}
+                />
+            )}
         </div>
     );
 }
