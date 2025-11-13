@@ -289,7 +289,14 @@ export default function App() {
     // Sorted task lists for different views
     const sortedDailyTasks = sortTasks(dailyTasks);
     const todayTasks = getTasksForDate(tasks, today); // Get all tasks for today INCLUDING recurring
-    const sortedTodayTasks = sortTasks(todayTasks.filter(t => !t.completed)); // Only show active tasks
+    const sortedTodayTasks = sortTasks(
+        todayTasks.filter(t => {
+            if (t.isRecurring) {
+                return !isTaskCompletedOnDate(t, today, recurringCompletions);
+            }
+            return !t.completed;
+        })
+    ); // Only show active tasks
     const sortedTomorrowTasks = sortTasks(tasks.filter(t => !t.completed && t.dueDate === tomorrow && !t.isRecurring));
     //const sortedFlexibleTasks = sortTasks(tasks.filter(t => !t.completed && t.isFlexible));
     //const sortedRecurringTasks = sortTasks(tasks.filter(t => t.isRecurring && (!t.recurringEndDate || t.recurringEndDate >= today)));
