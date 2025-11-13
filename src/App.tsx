@@ -254,7 +254,7 @@ export default function App() {
     const [editProjectDesc, setEditProjectDesc] = useState("");
 
     // Premium feature flag - Projects are premium-only
-    const [isPremium] = useState(true); // Set to true to enable Projects
+    const [isPremium] = useState(false); // Set to true to enable Projects
 
     // Task form state
     const [taskName, setTaskName] = useState("");
