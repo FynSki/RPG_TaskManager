@@ -247,8 +247,14 @@ export default function App() {
     // Project details view state
     const [selectedProject, setSelectedProject] = useState<Project | null>(null);
 
+    // Project edit state
+    const [showEditProjectModal, setShowEditProjectModal] = useState(false);
+    const [editingProject, setEditingProject] = useState<Project | null>(null);
+    const [editProjectName, setEditProjectName] = useState("");
+    const [editProjectDesc, setEditProjectDesc] = useState("");
+
     // Premium feature flag - Projects are premium-only
-    const [isPremium] = useState(false); // Set to true to enable Projects
+    const [isPremium] = useState(true); // Set to true to enable Projects
 
     // Task form state
     const [taskName, setTaskName] = useState("");
@@ -546,6 +552,33 @@ export default function App() {
     function deleteProject(projectId: string) {
         setProjects(projects.filter(p => p.id !== projectId));
         setTasks(tasks.map(t => (t.projectId === projectId ? { ...t, projectId: null } : t)));
+    }
+
+    function openEditProjectModal(project: Project) {
+        setEditingProject(project);
+        setEditProjectName(project.name);
+        setEditProjectDesc(project.description);
+        setShowEditProjectModal(true);
+    }
+
+    function saveProjectEdit() {
+        if (!editingProject || !editProjectName.trim()) return;
+
+        setProjects(projects.map(p =>
+            p.id === editingProject.id
+                ? { ...p, name: editProjectName, description: editProjectDesc }
+                : p
+        ));
+
+        // Aktualizuj selectedProject jeśli był wybrany
+        if (selectedProject && selectedProject.id === editingProject.id) {
+            setSelectedProject({ ...selectedProject, name: editProjectName, description: editProjectDesc });
+        }
+
+        setShowEditProjectModal(false);
+        setEditingProject(null);
+        setEditProjectName("");
+        setEditProjectDesc("");
     }
 
     // ========== TASK CLASS MANAGEMENT FUNCTIONS ==========
@@ -1977,11 +2010,20 @@ export default function App() {
                                 return (
                                     <div key={project.id} className="bg-slate-900 rounded-lg p-6 border-l-4 border border-slate-700" style={{ borderLeftColor: project.color }}>
                                         <div className="flex justify-between items-start mb-4">
-                                            <div>
+                                            <div className="flex-1">
                                                 <h3 className="text-xl font-semibold" style={{ color: project.color }}>{project.name}</h3>
                                                 <p className="text-sm text-slate-300">{project.description}</p>
                                             </div>
-                                            <button onClick={() => deleteProject(project.id)} className="text-rose-500 hover:text-rose-400">✕</button>
+                                            <div className="flex gap-2">
+                                                <button
+                                                    onClick={() => openEditProjectModal(project)}
+                                                    className="text-indigo-500 hover:text-indigo-400 transition"
+                                                    title="Edit project"
+                                                >
+                                                    ✏️
+                                                </button>
+                                                <button onClick={() => deleteProject(project.id)} className="text-rose-500 hover:text-rose-400" title="Delete project">✕</button>
+                                            </div>
                                         </div>
 
                                         <div className="space-y-2">
@@ -2038,9 +2080,19 @@ export default function App() {
                                         </button>
 
                                         <div className="bg-slate-800 rounded-xl p-6 border-l-4 border border-slate-700" style={{ borderLeftColor: selectedProject.color }}>
-                                            <h1 className="text-3xl font-bold mb-2" style={{ color: selectedProject.color }}>
-                                                {selectedProject.name}
-                                            </h1>
+                                            <div className="flex justify-between items-start mb-2">
+                                                <h1 className="text-3xl font-bold" style={{ color: selectedProject.color }}>
+                                                    {selectedProject.name}
+                                                </h1>
+                                                <button
+                                                    onClick={() => openEditProjectModal(selectedProject)}
+                                                    className="text-indigo-500 hover:text-indigo-400 transition px-3 py-1 rounded-lg border border-indigo-500 hover:border-indigo-400 flex items-center gap-2"
+                                                    title="Edit project"
+                                                >
+                                                    <span>✏️</span>
+                                                    <span className="text-sm">Edit Project</span>
+                                                </button>
+                                            </div>
                                             <p className="text-slate-300 mb-4">{selectedProject.description}</p>
 
                                             {/* Stats */}
@@ -2530,6 +2582,66 @@ export default function App() {
                                     className="w-full bg-slate-900 text-slate-300 px-6 py-3 rounded-lg hover:bg-slate-700 transition"
                                 >
                                     Close
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* NOWE: Modal edycji projektu */}
+                {showEditProjectModal && editingProject && (
+                    <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 p-4">
+                        <div className="bg-slate-800 rounded-xl p-6 max-w-md w-full border border-slate-700">
+                            <div className="flex justify-between items-start mb-6">
+                                <h3 className="text-2xl font-semibold">Edit Project</h3>
+                                <button
+                                    onClick={() => setShowEditProjectModal(false)}
+                                    className="text-slate-400 hover:text-slate-200 text-2xl"
+                                >
+                                    ✕
+                                </button>
+                            </div>
+
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-400 mb-2">
+                                        Project Name
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={editProjectName}
+                                        onChange={(e) => setEditProjectName(e.target.value)}
+                                        className="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-lg text-slate-100 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                                        placeholder="Enter project name"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-400 mb-2">
+                                        Description
+                                    </label>
+                                    <textarea
+                                        value={editProjectDesc}
+                                        onChange={(e) => setEditProjectDesc(e.target.value)}
+                                        className="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-lg text-slate-100 focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none"
+                                        placeholder="Enter project description"
+                                        rows={3}
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="flex gap-3 mt-6">
+                                <button
+                                    onClick={() => setShowEditProjectModal(false)}
+                                    className="flex-1 bg-slate-900 text-slate-300 px-6 py-3 rounded-lg hover:bg-slate-700 transition"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={saveProjectEdit}
+                                    className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-lg transition"
+                                >
+                                    Save Changes
                                 </button>
                             </div>
                         </div>
