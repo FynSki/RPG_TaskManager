@@ -253,6 +253,9 @@ export default function App() {
     const [editProjectName, setEditProjectName] = useState("");
     const [editProjectDesc, setEditProjectDesc] = useState("");
 
+    // Monthly view - day detail modal state
+    const [selectedDayModal, setSelectedDayModal] = useState<Date | null>(null);
+
     // Premium feature flag - Projects are premium-only
     const [isPremium] = useState(false); // Set to true to enable Projects
 
@@ -1091,6 +1094,7 @@ export default function App() {
                             </div>
                         </div>
 
+                        {/* Uproszczony widok kalendarza */}
                         <div className="grid grid-cols-7 gap-1 sm:gap-2">
                             {monthDates.map((date, idx) => {
                                 if (!date)
@@ -1101,62 +1105,32 @@ export default function App() {
                                 const isToday = date === today;
 
                                 return (
-                                    <div
+                                    <button
                                         key={date}
-                                        className={`bg-slate-900 rounded-lg p-2 sm:p-3 border ${isToday ? "border-indigo-500 ring-1 sm:ring-2 ring-indigo-500" : "border-slate-700"
-                                            } flex flex-col min-h-[150px] sm:min-h-[200px]`}
+                                        onClick={() => setSelectedDayModal(new Date(date))}
+                                        className={`bg-slate-900 rounded-lg p-3 sm:p-4 border ${
+                                            isToday ? "border-indigo-500 ring-1 sm:ring-2 ring-indigo-500" : "border-slate-700"
+                                        } hover:bg-slate-800 transition-all cursor-pointer aspect-square flex flex-col items-center justify-center gap-1`}
                                     >
-                                        {/* Date header - similar to Weekly */}
-                                        <div className="text-center mb-2">
-                                            <p className={`text-sm sm:text-base font-semibold ${isToday ? "text-indigo-400" : ""}`}>
-                                                {date.split("-")[2]}
-                                            </p>
-                                            {dayTasks.length > 0 && (
-                                                <p className="text-xs text-slate-400 mt-0.5">
+                                        {/* Numer dnia */}
+                                        <p className={`text-base sm:text-xl font-semibold ${isToday ? "text-indigo-400" : "text-slate-100"}`}>
+                                            {date.split("-")[2]}
+                                        </p>
+                                        
+                                        {/* Licznik tasków */}
+                                        {dayTasks.length > 0 && (
+                                            <div className="flex flex-col items-center gap-0.5">
+                                                <div className={`text-xs sm:text-sm font-medium ${
+                                                    completedCount === dayTasks.length ? "text-green-400" : "text-slate-300"
+                                                }`}>
                                                     {completedCount}/{dayTasks.length}
-                                                </p>
-                                            )}
-                                        </div>
-
-                                        {/* Tasks list - same style as Weekly */}
-                                        <div className="flex-1 space-y-1 overflow-y-auto">
-                                            {dayTasks.map(task => {
-                                                const isCompleted = isTaskCompletedOnDate(task, date, recurringCompletions);
-                                                return (
-                                                    <div
-                                                        key={task.id}
-                                                        onClick={(e) => {
-                                                            if ((e.target as HTMLElement).tagName !== 'INPUT') {
-                                                                openEditModal(task);
-                                                            }
-                                                        }}
-                                                        className={`text-xs p-1.5 sm:p-2 rounded border border-slate-700 cursor-pointer ${isCompleted ? "bg-slate-800 opacity-60" : "bg-slate-900 hover:bg-slate-800"
-                                                            }`}
-                                                    >
-                                                        <div className="flex items-start gap-1.5">
-                                                            <input
-                                                                type="checkbox"
-                                                                checked={isCompleted}
-                                                                onChange={() => toggleTask(task.id, date)}
-                                                                className="mt-0.5 w-3 h-3 rounded border-slate-600 flex-shrink-0"
-                                                            />
-                                                            <span className={`text-[0.7rem] sm:text-xs leading-tight ${isCompleted ? "line-through text-slate-500" : ""}`}>
-                                                                {task.name}
-                                                            </span>
-                                                        </div>
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
-
-                                        {/* Add button - same as Weekly */}
-                                        <button
-                                            onClick={() => openTaskModal(date)}
-                                            className="w-full mt-2 text-xs py-1.5 sm:py-2 bg-slate-800 hover:bg-slate-700 rounded border border-slate-700"
-                                        >
-                                            + Add
-                                        </button>
-                                    </div>
+                                                </div>
+                                                {completedCount === dayTasks.length && dayTasks.length > 0 && (
+                                                    <span className="text-xs">✓</span>
+                                                )}
+                                            </div>
+                                        )}
+                                    </button>
                                 );
                             })}
                         </div>
@@ -2692,6 +2666,162 @@ export default function App() {
                             >
                                 Got it!
                             </button>
+                        </div>
+                    </div>
+                )}
+
+                {/* NOWE: Modal szczegółowego widoku dnia w monthly view */}
+                {selectedDayModal && (
+                    <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 p-4 overflow-y-auto">
+                        <div className="bg-slate-800 rounded-xl p-6 max-w-4xl w-full border border-slate-700 max-h-[90vh] overflow-y-auto">
+                            {(() => {
+                                const dateStr = selectedDayModal.toISOString().split('T')[0];
+                                const dayTasks = getTasksForDate(tasks, dateStr);
+                                const completedCount = dayTasks.filter(t => isTaskCompletedOnDate(t, dateStr, recurringCompletions)).length;
+                                const dayName = getDayName(dateStr);
+
+                                return (
+                                    <>
+                                        {/* Header */}
+                                        <div className="flex justify-between items-start mb-6">
+                                            <div>
+                                                <h3 className="text-2xl font-semibold">{dayName}</h3>
+                                                <p className="text-slate-400 text-sm mt-1">
+                                                    {formatShortDate(dateStr)} • {completedCount}/{dayTasks.length} completed
+                                                </p>
+                                            </div>
+                                            <button
+                                                onClick={() => setSelectedDayModal(null)}
+                                                className="text-slate-400 hover:text-slate-200 text-2xl"
+                                            >
+                                                ✕
+                                            </button>
+                                        </div>
+
+                                        {/* Tasks list */}
+                                        <div className="space-y-3 mb-6">
+                                            {dayTasks.length === 0 ? (
+                                                <div className="text-center py-8 text-slate-400">
+                                                    <p className="text-lg mb-2">No quests for this day</p>
+                                                    <p className="text-sm">Click "Add Quest" to create a new quest</p>
+                                                </div>
+                                            ) : (
+                                                dayTasks.map(task => {
+                                                    const isCompleted = isTaskCompletedOnDate(task, dateStr, recurringCompletions);
+                                                    const project = task.projectId ? projects.find(p => p.id === task.projectId) : null;
+                                                    const taskClass = task.classId ? taskClasses.find(c => c.id === task.classId) : null;
+                                                    const skill = task.skillId ? skills.find(s => s.id === task.skillId) : null;
+
+                                                    return (
+                                                        <div
+                                                            key={task.id}
+                                                            className={`bg-slate-900 rounded-lg p-4 border border-slate-700 transition-all ${
+                                                                isCompleted ? "opacity-60" : ""
+                                                            }`}
+                                                        >
+                                                            <div className="flex items-start gap-3">
+                                                                {/* Checkbox */}
+                                                                <input
+                                                                    type="checkbox"
+                                                                    checked={isCompleted}
+                                                                    onChange={() => toggleTask(task.id, dateStr)}
+                                                                    className="mt-1 w-5 h-5 rounded border-slate-600 flex-shrink-0"
+                                                                />
+
+                                                                {/* Task content */}
+                                                                <div 
+                                                                    className="flex-1 cursor-pointer"
+                                                                    onClick={() => {
+                                                                        setSelectedDayModal(null);
+                                                                        openEditModal(task);
+                                                                    }}
+                                                                >
+                                                                    <div className="flex items-start justify-between gap-3 mb-2">
+                                                                        <h4 className={`font-semibold ${isCompleted ? "line-through text-slate-500" : "text-slate-100"}`}>
+                                                                            {task.name}
+                                                                        </h4>
+                                                                        <RarityBadge rarity={task.priority} showXP />
+                                                                    </div>
+
+                                                                    {task.description && (
+                                                                        <p className={`text-sm mb-3 ${isCompleted ? "text-slate-600" : "text-slate-400"}`}>
+                                                                            {task.description}
+                                                                        </p>
+                                                                    )}
+
+                                                                    {/* Tags */}
+                                                                    <div className="flex flex-wrap gap-2 text-xs">
+                                                                        {project && (
+                                                                            <span
+                                                                                className="px-3 py-1 rounded-full border"
+                                                                                style={{
+                                                                                    borderColor: project.color,
+                                                                                    color: project.color,
+                                                                                    backgroundColor: `${project.color}20`,
+                                                                                }}
+                                                                            >
+                                                                                📁 {project.name}
+                                                                            </span>
+                                                                        )}
+                                                                        {taskClass && (
+                                                                            <span
+                                                                                className="px-3 py-1 rounded-full border"
+                                                                                style={{
+                                                                                    borderColor: taskClass.color,
+                                                                                    color: taskClass.color,
+                                                                                    backgroundColor: `${taskClass.color}20`,
+                                                                                }}
+                                                                            >
+                                                                                ⚔️ {taskClass.name}
+                                                                            </span>
+                                                                        )}
+                                                                        {skill && (
+                                                                            <span
+                                                                                className="px-3 py-1 rounded-full border"
+                                                                                style={{
+                                                                                    borderColor: skill.color,
+                                                                                    color: skill.color,
+                                                                                    backgroundColor: `${skill.color}20`,
+                                                                                }}
+                                                                            >
+                                                                                ✨ {skill.name}
+                                                                            </span>
+                                                                        )}
+                                                                        {task.isRecurring && (
+                                                                            <span className="px-3 py-1 rounded-full bg-purple-900 text-purple-300 border border-purple-700">
+                                                                                🔄 {task.recurringType}
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })
+                                            )}
+                                        </div>
+
+                                        {/* Actions */}
+                                        <div className="flex gap-3">
+                                            <button
+                                                onClick={() => setSelectedDayModal(null)}
+                                                className="flex-1 bg-slate-900 text-slate-300 px-6 py-3 rounded-lg hover:bg-slate-700 transition"
+                                            >
+                                                Close
+                                            </button>
+                                            <button
+                                                onClick={() => {
+                                                    setSelectedDayModal(null);
+                                                    openTaskModal(dateStr);
+                                                }}
+                                                className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-lg transition"
+                                            >
+                                                + Add Quest
+                                            </button>
+                                        </div>
+                                    </>
+                                );
+                            })()}
                         </div>
                     </div>
                 )}
