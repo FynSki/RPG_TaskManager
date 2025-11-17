@@ -1103,44 +1103,59 @@ export default function App() {
                                 return (
                                     <div
                                         key={date}
-                                        className={`aspect-square bg-slate-900 rounded-lg p-1 sm:p-2 border flex flex-col ${isToday ? "border-indigo-500 ring-1 sm:ring-2 ring-indigo-500" : "border-slate-700"
-                                            }`}
+                                        className={`bg-slate-900 rounded-lg p-2 sm:p-3 border ${isToday ? "border-indigo-500 ring-1 sm:ring-2 ring-indigo-500" : "border-slate-700"
+                                            } flex flex-col min-h-[150px] sm:min-h-[200px]`}
                                     >
-                                        <div className={`text-xs sm:text-sm font-semibold mb-0.5 sm:mb-1 ${isToday ? "text-indigo-400" : ""}`}>
-                                            {date.split("-")[2]}
+                                        {/* Date header - similar to Weekly */}
+                                        <div className="text-center mb-2">
+                                            <p className={`text-sm sm:text-base font-semibold ${isToday ? "text-indigo-400" : ""}`}>
+                                                {date.split("-")[2]}
+                                            </p>
+                                            {dayTasks.length > 0 && (
+                                                <p className="text-xs text-slate-400 mt-0.5">
+                                                    {completedCount}/{dayTasks.length}
+                                                </p>
+                                            )}
                                         </div>
-                                        <div className="flex-1 space-y-0.5 sm:space-y-1 overflow-y-auto">
-                                            {dayTasks.slice(0, 2).map(task => {
+
+                                        {/* Tasks list - same style as Weekly */}
+                                        <div className="flex-1 space-y-1 overflow-y-auto">
+                                            {dayTasks.map(task => {
                                                 const isCompleted = isTaskCompletedOnDate(task, date, recurringCompletions);
                                                 return (
                                                     <div
                                                         key={task.id}
-                                                        onClick={() => openEditModal(task)}
-                                                        className={`text-[0.6rem] sm:text-xs truncate cursor-pointer hover:text-indigo-400 transition ${isCompleted ? "line-through text-slate-500" : "text-slate-300"
+                                                        onClick={(e) => {
+                                                            if ((e.target as HTMLElement).tagName !== 'INPUT') {
+                                                                openEditModal(task);
+                                                            }
+                                                        }}
+                                                        className={`text-xs p-1.5 sm:p-2 rounded border border-slate-700 cursor-pointer ${isCompleted ? "bg-slate-800 opacity-60" : "bg-slate-900 hover:bg-slate-800"
                                                             }`}
-                                                        title={task.name}
                                                     >
-                                                        {task.name}
+                                                        <div className="flex items-start gap-1.5">
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={isCompleted}
+                                                                onChange={() => toggleTask(task.id, date)}
+                                                                className="mt-0.5 w-3 h-3 rounded border-slate-600 flex-shrink-0"
+                                                            />
+                                                            <span className={`text-[0.7rem] sm:text-xs leading-tight ${isCompleted ? "line-through text-slate-500" : ""}`}>
+                                                                {task.name}
+                                                            </span>
+                                                        </div>
                                                     </div>
                                                 );
                                             })}
-                                            {dayTasks.length > 2 && (
-                                                <div className="text-[0.6rem] sm:text-xs text-slate-500">+{dayTasks.length - 2}</div>
-                                            )}
                                         </div>
 
+                                        {/* Add button - same as Weekly */}
                                         <button
                                             onClick={() => openTaskModal(date)}
-                                            className="w-full mt-1 sm:mt-3 text-[0.6rem] sm:text-xs py-1 sm:py-2 bg-slate-800 hover:bg-slate-700 rounded border border-slate-700"
+                                            className="w-full mt-2 text-xs py-1.5 sm:py-2 bg-slate-800 hover:bg-slate-700 rounded border border-slate-700"
                                         >
                                             + Add
                                         </button>
-
-                                        {dayTasks.length > 0 && (
-                                            <div className="text-[0.6rem] sm:text-xs text-slate-400 mt-0.5 sm:mt-1">
-                                                {completedCount}/{dayTasks.length}
-                                            </div>
-                                        )}
                                     </div>
                                 );
                             })}
