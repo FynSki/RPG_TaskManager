@@ -4,17 +4,23 @@
  * Provides authentication state and functions throughout the app.
  * Manages user session, login, logout, and registration.
  * 
- * KOMPATYBILNA WERSJA - dzia³a ze starszymi wersjami @supabase/supabase-js
+ * KOMPATYBILNA WERSJA - dziaÅ‚a ze starszymi wersjami @supabase/supabase-js
  */
 
 import { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 
-// U¿ywamy w³asnych typów zamiast importowaæ z @supabase/supabase-js
+// UÅ¼ywamy wÅ‚asnych typÃ³w zamiast importowaÄ‡ z @supabase/supabase-js
 type AuthError = {
     message: string;
     status?: number;
 };
+
+// Type for profile data from Supabase
+interface ProfileData {
+    is_premium?: boolean;
+    premium_expires_at?: string | null;
+}
 
 // Auth Context Type
 interface AuthContextType {
@@ -50,12 +56,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             if (error) throw error;
 
             if (data) {
+                // Type assertion for Supabase response
+                const profileData = data as ProfileData;
+
                 // Check if premium and not expired
-                const isActive = data.is_premium && (
-                    !data.premium_expires_at ||
-                    new Date(data.premium_expires_at) > new Date()
+                const isActive = profileData.is_premium && (
+                    !profileData.premium_expires_at ||
+                    new Date(profileData.premium_expires_at) > new Date()
                 );
-                setIsPremium(isActive);
+                setIsPremium(isActive || false);
             }
         } catch (error) {
             console.error('Error checking premium status:', error);
