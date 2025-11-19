@@ -182,7 +182,7 @@ function RarityBadge({ rarity, showXP = false }: { rarity: "common" | "rare" | "
 export default function App() {
     // ========== AUTH STATE ==========
 
-    const { user, loading: authLoading, isPremium, signOut } = useAuth();
+    const { user, isPremium, signOut } = useAuth();
     const [showAuthModal, setShowAuthModal] = useState(false);
     const [authView, setAuthView] = useState<'login' | 'register'>('login');
 
