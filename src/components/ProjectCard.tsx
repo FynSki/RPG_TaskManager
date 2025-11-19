@@ -1,4 +1,3 @@
-
 import type { Project, Task } from '../refactored-src/types';
 
 interface ProjectCardProps {
@@ -6,9 +5,10 @@ interface ProjectCardProps {
     tasks: Task[];
     onViewDetails: (project: Project) => void;
     onDelete: (projectId: string) => void;
+    onEdit?: (project: Project) => void;
 }
 
-export function ProjectCard({ project, tasks, onViewDetails, onDelete }: ProjectCardProps) {
+export function ProjectCard({ project, tasks, onViewDetails, onDelete, onEdit }: ProjectCardProps) {
     const projectTasks = tasks.filter(t => t.projectId === project.id);
     const completedTasks = projectTasks.filter(t => t.completed).length;
     const activeTasks = projectTasks.length - completedTasks;
@@ -23,7 +23,7 @@ export function ProjectCard({ project, tasks, onViewDetails, onDelete }: Project
         >
             {/* Header */}
             <div className="flex justify-between items-start mb-4">
-                <div>
+                <div className="flex-1">
                     <h3
                         className="text-xl font-semibold"
                         style={{ color: project.color }}
@@ -34,13 +34,24 @@ export function ProjectCard({ project, tasks, onViewDetails, onDelete }: Project
                         {project.description}
                     </p>
                 </div>
-                <button
-                    onClick={() => onDelete(project.id)}
-                    className="text-rose-500 hover:text-rose-400 transition"
-                    title="Delete project"
-                >
-                    ✕
-                </button>
+                <div className="flex gap-2">
+                    {onEdit && (
+                        <button
+                            onClick={() => onEdit(project)}
+                            className="text-indigo-500 hover:text-indigo-400 transition"
+                            title="Edit project"
+                        >
+                            ✏️
+                        </button>
+                    )}
+                    <button
+                        onClick={() => onDelete(project.id)}
+                        className="text-rose-500 hover:text-rose-400 transition"
+                        title="Delete project"
+                    >
+                        ✕
+                    </button>
+                </div>
             </div>
 
             {/* Stats */}
@@ -91,8 +102,8 @@ export function ProjectCard({ project, tasks, onViewDetails, onDelete }: Project
                             />
                             <span
                                 className={`text-xs ${task.completed
-                                        ? 'line-through text-slate-500'
-                                        : 'text-slate-300'
+                                    ? 'line-through text-slate-500'
+                                    : 'text-slate-300'
                                     }`}
                             >
                                 {task.name}
