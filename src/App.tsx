@@ -1,10 +1,17 @@
 import { useState, useEffect } from "react";
+
 import { AboutPage } from './components/AboutPage';
 import { DataManagement } from './components/DataManagement';
 import { MinimalOnboarding } from './components/MinimalOnboarding';
 import { LevelUpModal } from './components/LevelUpModal';
+import { useAuth } from './components/AuthProvider';
+import { Login } from './components/Login';
+import { Register } from './components/Register';
 
 
+
+console.log('Supabase URL:', import.meta.env.VITE_SUPABASE_URL);
+console.log('Has key:', !!import.meta.env.VITE_SUPABASE_ANON_KEY);
 /**
  * TaskQuest - Gamified Task Management Application
  * 
@@ -173,6 +180,12 @@ function RarityBadge({ rarity, showXP = false }: { rarity: "common" | "rare" | "
 // ==================== MAIN COMPONENT ====================
 
 export default function App() {
+    // ========== AUTH STATE ==========
+
+    const { user, loading: authLoading, isPremium, signOut } = useAuth();
+    const [showAuthModal, setShowAuthModal] = useState(false);
+    const [authView, setAuthView] = useState<'login' | 'register'>('login');
+
     // ========== STATE ==========
 
     // View state
@@ -255,9 +268,6 @@ export default function App() {
 
     // Monthly view - day detail modal state
     const [selectedDayModal, setSelectedDayModal] = useState<Date | null>(null);
-
-    // Premium feature flag - Projects are premium-only
-    const [isPremium] = useState(false); // Set to true to enable Projects
 
     // Task form state
     const [taskName, setTaskName] = useState("");
@@ -647,6 +657,21 @@ export default function App() {
     // Show About Page (fullscreen overlay)
     if (showAboutPage) {
         return <AboutPage onClose={() => setShowAboutPage(false)} />;
+    }
+
+    // Show Auth Modal (fullscreen)
+    if (showAuthModal) {
+        return authView === 'login' ? (
+            <Login
+                onSwitchToRegister={() => setAuthView('register')}
+                onSkip={() => setShowAuthModal(false)}  // ← DODAJ
+            />
+        ) : (
+            <Register
+                onSwitchToLogin={() => setAuthView('login')}
+                onSkip={() => setShowAuthModal(false)}  // ← DODAJ
+            />
+        );
     }
 
     // Note: The JSX render logic continues in the next part...
@@ -1108,21 +1133,19 @@ export default function App() {
                                     <button
                                         key={date}
                                         onClick={() => setSelectedDayModal(new Date(date))}
-                                        className={`bg-slate-900 rounded-lg p-3 sm:p-4 border ${
-                                            isToday ? "border-indigo-500 ring-1 sm:ring-2 ring-indigo-500" : "border-slate-700"
-                                        } hover:bg-slate-800 transition-all cursor-pointer aspect-square flex flex-col items-center justify-center gap-1`}
+                                        className={`bg-slate-900 rounded-lg p-3 sm:p-4 border ${isToday ? "border-indigo-500 ring-1 sm:ring-2 ring-indigo-500" : "border-slate-700"
+                                            } hover:bg-slate-800 transition-all cursor-pointer aspect-square flex flex-col items-center justify-center gap-1`}
                                     >
                                         {/* Numer dnia */}
                                         <p className={`text-base sm:text-xl font-semibold ${isToday ? "text-indigo-400" : "text-slate-100"}`}>
                                             {date.split("-")[2]}
                                         </p>
-                                        
+
                                         {/* Licznik tasków */}
                                         {dayTasks.length > 0 && (
                                             <div className="flex flex-col items-center gap-0.5">
-                                                <div className={`text-xs sm:text-sm font-medium ${
-                                                    completedCount === dayTasks.length ? "text-green-400" : "text-slate-300"
-                                                }`}>
+                                                <div className={`text-xs sm:text-sm font-medium ${completedCount === dayTasks.length ? "text-green-400" : "text-slate-300"
+                                                    }`}>
                                                     {completedCount}/{dayTasks.length}
                                                 </div>
                                                 {completedCount === dayTasks.length && dayTasks.length > 0 && (
@@ -1900,6 +1923,45 @@ export default function App() {
                         </div>
 
                         <div className="space-y-6">
+                            {/* Account Section */}
+                            <div className="bg-slate-900 rounded-xl p-6 border border-slate-700">
+                                <h3 className="text-xl font-semibold mb-4">Account</h3>
+                                {user ? (
+                                    <div>
+                                        <div className="mb-4">
+                                            <p className="text-slate-400 text-sm mb-1">Signed in as:</p>
+                                            <p className="text-slate-200 font-medium">{user.email}</p>
+                                            {isPremium && (
+                                                <span className="inline-block mt-2 px-3 py-1 bg-gradient-to-r from-yellow-600 to-orange-600 text-white text-xs font-semibold rounded-full">
+                                                    💎 Premium
+                                                </span>
+                                            )}
+                                        </div>
+                                        <button
+                                            onClick={signOut}
+                                            className="bg-rose-700 hover:bg-rose-600 text-white px-4 py-2 rounded-lg transition"
+                                        >
+                                            Sign Out
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <div>
+                                        <p className="text-slate-400 text-sm mb-4">
+                                            Sign in to sync your data across devices and unlock premium features.
+                                        </p>
+                                        <button
+                                            onClick={() => {
+                                                setAuthView('login');
+                                                setShowAuthModal(true);
+                                            }}
+                                            className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white px-6 py-3 rounded-lg font-semibold transition shadow-lg"
+                                        >
+                                            Sign In / Sign Up
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+
                             {/* Data Management - Export/Import */}
                             <DataManagement
                                 tasks={tasks}
@@ -2715,9 +2777,8 @@ export default function App() {
                                                     return (
                                                         <div
                                                             key={task.id}
-                                                            className={`bg-slate-900 rounded-lg p-4 border border-slate-700 transition-all ${
-                                                                isCompleted ? "opacity-60" : ""
-                                                            }`}
+                                                            className={`bg-slate-900 rounded-lg p-4 border border-slate-700 transition-all ${isCompleted ? "opacity-60" : ""
+                                                                }`}
                                                         >
                                                             <div className="flex items-start gap-3">
                                                                 {/* Checkbox */}
@@ -2729,7 +2790,7 @@ export default function App() {
                                                                 />
 
                                                                 {/* Task content */}
-                                                                <div 
+                                                                <div
                                                                     className="flex-1 cursor-pointer"
                                                                     onClick={() => {
                                                                         setSelectedDayModal(null);
