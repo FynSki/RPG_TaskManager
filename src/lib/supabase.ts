@@ -12,6 +12,9 @@ import type { Database } from './supabaseTypes';
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
+const storage =
+    typeof window !== "undefined" ? window.localStorage : undefined;
+
 // Validate environment variables
 if (!supabaseUrl || !supabaseAnonKey) {
     throw new Error(
@@ -23,15 +26,11 @@ if (!supabaseUrl || !supabaseAnonKey) {
 // Create Supabase client
 export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
     auth: {
-        // Store session in localStorage (survives page refresh)
-        storage: window.localStorage,
-        // Automatically refresh tokens
+        storage: typeof window !== 'undefined' ? window.localStorage : undefined,
         autoRefreshToken: true,
-        // Persist session across page reloads
         persistSession: true,
-        // Detect session from URL (for magic links, etc.)
-        detectSessionInUrl: true
-    }
+        detectSessionInUrl: true,
+    },
 });
 
 // Helper function to check if user is authenticated
