@@ -273,7 +273,9 @@ export default function App() {
     const [taskClassId, setTaskClassId] = useState<string>("");
     const [taskSkillId, setTaskSkillId] = useState<string>("");
     const [taskIsFlexible, setTaskIsFlexible] = useState(false);
-
+    //all task view
+    const [showCompletedQuests, setShowCompletedQuests] = useState(false);
+    
     // Project form state
     const [newProjectName, setNewProjectName] = useState("");
     const [newProjectDesc, setNewProjectDesc] = useState("");
@@ -1137,148 +1139,309 @@ export default function App() {
                     </div>
                 )}
 
-                {/* All Tasks View */}
-                {view === "all" && (
-                    <div className="bg-slate-800 rounded-xl shadow p-4 sm:p-6 border border-slate-700 max-w-7xl mx-auto">
-                        <div className="flex justify-between items-center mb-6">
-                            <h2 className="text-2xl font-semibold">All Quests</h2>
-                            <button
-                                onClick={() => openTaskModal()}
-                                className="bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700 transition"
-                            >
-                                + Add Quest
-                            </button>
-                        </div>
+                {/* All Tasks View - WITH COLLAPSIBLE COMPLETED SECTION */}
+{view === "all" && (
+    <div className="space-y-6 max-w-7xl mx-auto">
+        {/* Header z przyciskiem Add Quest */}
+        <div className="bg-slate-800 rounded-xl shadow p-4 sm:p-6 border border-slate-700">
+            <div className="flex justify-between items-center">
+                <h2 className="text-2xl font-semibold">All Quests</h2>
+                <button
+                    onClick={() => openTaskModal()}
+                    className="bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700 transition"
+                >
+                    + Add Quest
+                </button>
+            </div>
+        </div>
 
-                        <div className="space-y-3">
-                            {sortedTasks.length === 0 ? (
-                                <div className="text-center py-12 text-slate-400">
-                                    <p className="text-lg mb-2">No quests yet</p>
-                                    <p className="text-sm">Start your adventure by creating your first quest!</p>
-                                </div>
-                            ) : (
-                                sortedTasks.map(task => {
-                                    const project = task.projectId ? projects.find(p => p.id === task.projectId) : null;
-                                    const taskClass = task.classId ? taskClasses.find(c => c.id === task.classId) : null;
-                                    const skill = task.skillId ? skills.find(s => s.id === task.skillId) : null;
+        {/* GROUP 1: ACTIVE QUESTS - ALWAYS EXPANDED */}
+        <div className="bg-slate-800 rounded-xl shadow p-4 sm:p-6 border border-slate-700">
+            <div className="flex items-center gap-2 mb-6">
+                <span className="text-2xl">⚔️</span>
+                <h3 className="text-xl font-semibold text-indigo-400">Active Quests</h3>
+                <span className="ml-auto text-sm text-slate-400 bg-slate-700 px-3 py-1 rounded-full">
+                    {sortedTasks.filter(t => !t.completed).length} active
+                </span>
+            </div>
 
-                                    return (
-                                        <div
-                                            key={task.id}
-                                            className={`bg-slate-900 rounded-lg p-4 border border-slate-700 transition-all ${task.completed ? "opacity-60 cursor-pointer hover:opacity-80" : ""
-                                                }`}
-                                            onClick={() => task.completed && openCompletedTaskView(task)} // NOWE: kliknięcie na ukończone zadanie
-                                        >
-                                            <div className="flex items-start gap-4">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={task.completed}
-                                                    onChange={(e) => {
-                                                        e.stopPropagation();
-                                                        toggleTask(task.id);
-                                                    }}
-                                                    className="mt-1 w-5 h-5 rounded border-slate-600 text-indigo-600 focus:ring-indigo-500"
-                                                />
+            <div className="space-y-3">
+                {sortedTasks.filter(t => !t.completed).length === 0 ? (
+                    <div className="text-center py-12 text-slate-400">
+                        <p className="text-lg mb-2">No active quests</p>
+                        <p className="text-sm">Start your adventure by creating your first quest!</p>
+                    </div>
+                ) : (
+                    sortedTasks
+                        .filter(t => !t.completed)
+                        .map(task => {
+                            const project = task.projectId ? projects.find(p => p.id === task.projectId) : null;
+                            const taskClass = task.classId ? taskClasses.find(c => c.id === task.classId) : null;
+                            const skill = task.skillId ? skills.find(s => s.id === task.skillId) : null;
+
+                            return (
+                                <div
+                                    key={task.id}
+                                    className="bg-slate-900 rounded-lg p-4 border border-slate-700 transition-all hover:border-indigo-500/50"
+                                >
+                                    <div className="flex items-start gap-4">
+                                        <input
+                                            type="checkbox"
+                                            checked={task.completed}
+                                            onChange={(e) => {
+                                                e.stopPropagation();
+                                                toggleTask(task.id);
+                                            }}
+                                            className="mt-1 w-5 h-5 rounded border-slate-600 text-indigo-600 focus:ring-indigo-500"
+                                        />
+                                        <div className="flex-1">
+                                            <div className="flex items-start justify-between">
                                                 <div className="flex-1">
-                                                    <div className="flex items-start justify-between">
-                                                        <div className="flex-1">
-                                                            <h3
-                                                                className={`text-lg font-semibold ${task.completed ? "line-through text-slate-500" : ""
-                                                                    }`}
+                                                    <h3 className="text-lg font-semibold">
+                                                        {task.name}
+                                                    </h3>
+                                                    {task.description && (
+                                                        <p className="text-sm text-slate-400 mt-1">{task.description}</p>
+                                                    )}
+                                                    <div className="flex flex-wrap gap-2 mt-3">
+                                                        <span className="text-xs px-3 py-1 rounded-full bg-indigo-900 text-indigo-300 border border-indigo-700">
+                                                            {task.xpReward} XP
+                                                        </span>
+                                                        {task.priority && <RarityBadge rarity={task.priority} />}
+                                                        {task.dueDate && (
+                                                            <span className="text-xs px-3 py-1 rounded-full bg-slate-700 text-slate-300 border border-slate-600">
+                                                                📅 {task.dueDate}
+                                                            </span>
+                                                        )}
+                                                        {task.isFlexible && (
+                                                            <span className="text-xs px-3 py-1 rounded-full bg-teal-900 text-teal-300 border border-teal-700">
+                                                                🕐 Flexible
+                                                            </span>
+                                                        )}
+                                                        {project && (
+                                                            <span
+                                                                className="text-xs px-3 py-1 rounded-full border"
+                                                                style={{
+                                                                    borderColor: project.color,
+                                                                    color: project.color,
+                                                                    backgroundColor: `${project.color}20`,
+                                                                }}
                                                             >
-                                                                {task.name}
-                                                            </h3>
-                                                            {task.description && (
-                                                                <p className="text-sm text-slate-400 mt-1">{task.description}</p>
-                                                            )}
-                                                            <div className="flex flex-wrap gap-2 mt-3">
-                                                                <span className="text-xs px-3 py-1 rounded-full bg-indigo-900 text-indigo-300 border border-indigo-700">
-                                                                    {task.xpReward} XP
+                                                                {project.name}
+                                                            </span>
+                                                        )}
+                                                        {taskClass && (
+                                                            <span
+                                                                className="text-xs px-3 py-1 rounded-full border"
+                                                                style={{
+                                                                    borderColor: taskClass.color,
+                                                                    color: taskClass.color,
+                                                                    backgroundColor: `${taskClass.color}20`,
+                                                                }}
+                                                            >
+                                                                {taskClass.name}
+                                                            </span>
+                                                        )}
+                                                        {skill && (
+                                                            <span
+                                                                className="text-xs px-3 py-1 rounded-full border"
+                                                                style={{
+                                                                    borderColor: skill.color,
+                                                                    color: skill.color,
+                                                                    backgroundColor: `${skill.color}20`,
+                                                                }}
+                                                            >
+                                                                {skill.name}
+                                                            </span>
+                                                        )}
+                                                        {task.isRecurring && (
+                                                            <span className="text-xs px-3 py-1 rounded-full bg-purple-900 text-purple-300 border border-purple-700">
+                                                                🔄 {task.recurringType}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                                <div className="flex gap-2 ml-4">
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            openEditModal(task);
+                                                        }}
+                                                        className="text-slate-400 hover:text-indigo-400 transition"
+                                                    >
+                                                        ✏️
+                                                    </button>
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            deleteTask(task.id);
+                                                        }}
+                                                        className="text-slate-400 hover:text-rose-400 transition"
+                                                    >
+                                                        🗑️
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })
+                )}
+            </div>
+        </div>
+
+        {/* GROUP 2: COMPLETED QUESTS - COLLAPSIBLE (COLLAPSED BY DEFAULT) */}
+        <div className="bg-slate-800 rounded-xl shadow p-4 sm:p-6 border border-slate-700">
+            <div 
+                className="flex items-center gap-2 mb-6 cursor-pointer hover:opacity-80 transition"
+                onClick={() => setShowCompletedQuests(!showCompletedQuests)}
+            >
+                <span className="text-xl text-slate-400">
+                    {showCompletedQuests ? '▼' : '▶'}
+                </span>
+                <span className="text-2xl">✅</span>
+                <h3 className="text-xl font-semibold text-green-400">Completed Quests</h3>
+                <span className="ml-auto text-sm text-slate-400 bg-slate-700 px-3 py-1 rounded-full">
+                    {sortedTasks.filter(t => t.completed).length} completed
+                </span>
+            </div>
+
+            {showCompletedQuests && (
+                <div className="space-y-3">
+                    {sortedTasks.filter(t => t.completed).length === 0 ? (
+                        <div className="text-center py-12 text-slate-400">
+                            <p className="text-lg mb-2">No completed quests yet</p>
+                            <p className="text-sm">Complete your first quest to see it here!</p>
+                        </div>
+                    ) : (
+                        sortedTasks
+                            .filter(t => t.completed)
+                            .map(task => {
+                                const project = task.projectId ? projects.find(p => p.id === task.projectId) : null;
+                                const taskClass = task.classId ? taskClasses.find(c => c.id === task.classId) : null;
+                                const skill = task.skillId ? skills.find(s => s.id === task.skillId) : null;
+
+                                return (
+                                    <div
+                                        key={task.id}
+                                        className="bg-slate-900 rounded-lg p-4 border border-slate-700 transition-all opacity-60 cursor-pointer hover:opacity-80 hover:border-green-500/50"
+                                        onClick={() => openCompletedTaskView(task)}
+                                    >
+                                        <div className="flex items-start gap-4">
+                                            <input
+                                                type="checkbox"
+                                                checked={task.completed}
+                                                onChange={(e) => {
+                                                    e.stopPropagation();
+                                                    toggleTask(task.id);
+                                                }}
+                                                className="mt-1 w-5 h-5 rounded border-slate-600 text-green-600 focus:ring-green-500"
+                                            />
+                                            <div className="flex-1">
+                                                <div className="flex items-start justify-between">
+                                                    <div className="flex-1">
+                                                        <h3 className="text-lg font-semibold line-through text-slate-500">
+                                                            {task.name}
+                                                        </h3>
+                                                        {task.description && (
+                                                            <p className="text-sm text-slate-400 mt-1">{task.description}</p>
+                                                        )}
+                                                        <div className="flex flex-wrap gap-2 mt-3">
+                                                            <span className="text-xs px-3 py-1 rounded-full bg-green-900 text-green-300 border border-green-700">
+                                                                ✓ {task.xpReward} XP Gained
+                                                            </span>
+                                                            {task.priority && <RarityBadge rarity={task.priority} />}
+                                                            {task.dueDate && (
+                                                                <span className="text-xs px-3 py-1 rounded-full bg-slate-700 text-slate-300 border border-slate-600">
+                                                                    📅 {task.dueDate}
                                                                 </span>
-                                                                {task.priority && <RarityBadge rarity={task.priority} />}
-                                                                {task.dueDate && (
-                                                                    <span className="text-xs px-3 py-1 rounded-full bg-slate-700 text-slate-300 border border-slate-600">
-                                                                        📅 {task.dueDate}
-                                                                    </span>
-                                                                )}
-                                                                {task.isFlexible && (
-                                                                    <span className="text-xs px-3 py-1 rounded-full bg-teal-900 text-teal-300 border border-teal-700">
-                                                                        🕐 Flexible
-                                                                    </span>
-                                                                )}
-                                                                {project && (
-                                                                    <span
-                                                                        className="text-xs px-3 py-1 rounded-full border"
-                                                                        style={{
-                                                                            borderColor: project.color,
-                                                                            color: project.color,
-                                                                            backgroundColor: `${project.color}20`,
-                                                                        }}
-                                                                    >
-                                                                        {project.name}
-                                                                    </span>
-                                                                )}
-                                                                {taskClass && (
-                                                                    <span
-                                                                        className="text-xs px-3 py-1 rounded-full border"
-                                                                        style={{
-                                                                            borderColor: taskClass.color,
-                                                                            color: taskClass.color,
-                                                                            backgroundColor: `${taskClass.color}20`,
-                                                                        }}
-                                                                    >
-                                                                        {taskClass.name}
-                                                                    </span>
-                                                                )}
-                                                                {skill && (
-                                                                    <span
-                                                                        className="text-xs px-3 py-1 rounded-full border"
-                                                                        style={{
-                                                                            borderColor: skill.color,
-                                                                            color: skill.color,
-                                                                            backgroundColor: `${skill.color}20`,
-                                                                        }}
-                                                                    >
-                                                                        {skill.name}
-                                                                    </span>
-                                                                )}
-                                                                {task.isRecurring && (
-                                                                    <span className="text-xs px-3 py-1 rounded-full bg-purple-900 text-purple-300 border border-purple-700">
-                                                                        🔄 {task.recurringType}
-                                                                    </span>
-                                                                )}
-                                                            </div>
+                                                            )}
+                                                            {task.completedAt && (
+                                                                <span className="text-xs px-3 py-1 rounded-full bg-slate-700 text-slate-300 border border-slate-600">
+                                                                    ✓ Completed: {task.completedAt}
+                                                                </span>
+                                                            )}
+                                                            {task.isFlexible && (
+                                                                <span className="text-xs px-3 py-1 rounded-full bg-teal-900 text-teal-300 border border-teal-700">
+                                                                    🕐 Flexible
+                                                                </span>
+                                                            )}
+                                                            {project && (
+                                                                <span
+                                                                    className="text-xs px-3 py-1 rounded-full border"
+                                                                    style={{
+                                                                        borderColor: project.color,
+                                                                        color: project.color,
+                                                                        backgroundColor: `${project.color}20`,
+                                                                    }}
+                                                                >
+                                                                    {project.name}
+                                                                </span>
+                                                            )}
+                                                            {taskClass && (
+                                                                <span
+                                                                    className="text-xs px-3 py-1 rounded-full border"
+                                                                    style={{
+                                                                        borderColor: taskClass.color,
+                                                                        color: taskClass.color,
+                                                                        backgroundColor: `${taskClass.color}20`,
+                                                                    }}
+                                                                >
+                                                                    {taskClass.name}
+                                                                </span>
+                                                            )}
+                                                            {skill && (
+                                                                <span
+                                                                    className="text-xs px-3 py-1 rounded-full border"
+                                                                    style={{
+                                                                        borderColor: skill.color,
+                                                                        color: skill.color,
+                                                                        backgroundColor: `${skill.color}20`,
+                                                                    }}
+                                                                >
+                                                                    {skill.name}
+                                                                </span>
+                                                            )}
+                                                            {task.isRecurring && (
+                                                                <span className="text-xs px-3 py-1 rounded-full bg-purple-900 text-purple-300 border border-purple-700">
+                                                                    🔄 {task.recurringType}
+                                                                </span>
+                                                            )}
                                                         </div>
-                                                        <div className="flex gap-2 ml-4">
-                                                            <button
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation();
-                                                                    openEditModal(task);
-                                                                }}
-                                                                className="text-slate-400 hover:text-indigo-400 transition"
-                                                            >
-                                                                ✏️
-                                                            </button>
-                                                            <button
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation();
-                                                                    deleteTask(task.id);
-                                                                }}
-                                                                className="text-slate-400 hover:text-rose-400 transition"
-                                                            >
-                                                                🗑️
-                                                            </button>
-                                                        </div>
+                                                    </div>
+                                                    <div className="flex gap-2 ml-4">
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                openEditModal(task);
+                                                            }}
+                                                            className="text-slate-400 hover:text-indigo-400 transition"
+                                                        >
+                                                            ✏️
+                                                        </button>
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                deleteTask(task.id);
+                                                            }}
+                                                            className="text-slate-400 hover:text-rose-400 transition"
+                                                        >
+                                                            🗑️
+                                                        </button>
                                                     </div>
                                                 </div>
                                             </div>
                                         </div>
-                                    );
-                                })
-                            )}
-                        </div>
-                    </div>
-                )}
+                                    </div>
+                                );
+                            })
+                    )}
+                </div>
+            )}
+        </div>
+    </div>
+)}
 
                 {/* NOWE: Active Tasks View */}
                 {view === "activeTasks" && (
