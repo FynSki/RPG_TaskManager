@@ -15,6 +15,12 @@ export type SubTask = {
     completed: boolean;
 };
 
+export type TaskComment = {
+    id: string;
+    text: string;
+    createdAt: string; // ISO string daty komentarza
+};
+
 export type Task = {
     id: string;
     projectId: string | null;
@@ -27,6 +33,7 @@ export type Task = {
     subtasks: SubTask[];
     createdAt: string;
     completedAt?: string;
+    comments?: TaskComment[];
     isRecurring?: boolean;
     recurringType?: "daily" | "weekly" | "monthly";
     recurringDay?: number;
