@@ -128,5 +128,10 @@ export function addDays(dateStr: string, days: number): string {
 export function addMonths(monthStr: string, months: number): string {
     const [year, month] = monthStr.split("-").map(Number);
     const date = new Date(year, month - 1 + months, 1);
-    return date.toISOString().slice(0, 7);
+
+    // Zamiast toISOString() użyj getFullYear() i getMonth()
+    const newYear = date.getFullYear();
+    const newMonth = String(date.getMonth() + 1).padStart(2, '0');
+
+    return `${newYear}-${newMonth}`;
 }
