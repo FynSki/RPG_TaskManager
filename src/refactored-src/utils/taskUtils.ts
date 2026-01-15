@@ -135,6 +135,7 @@ export function createNewTask(overrides: Partial<Task> = {}): Task {
         projectId: null,
         name: "",
         description: "",
+        comments: [],
         completed: false,
         xpReward: 50,
         priority: "common",
