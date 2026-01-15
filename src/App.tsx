@@ -3,7 +3,8 @@ import { AboutPage } from './components/AboutPage';
 import { DataManagement } from './components/DataManagement';
 import { MinimalOnboarding } from './components/MinimalOnboarding';
 import { LevelUpModal } from './components/LevelUpModal';
-
+import { useMemo } from 'react';
+import { DateRangeFilter } from './components/DateRangeFilter';
 
 /**
  * TaskQuest - Gamified Task Management Application
@@ -233,6 +234,15 @@ export default function App() {
     const [showAboutPage, setShowAboutPage] = useState(false);
     const [showMobileMenu, setShowMobileMenu] = useState(false);
     const [showStatInfo, setShowStatInfo] = useState<string | null>(null);
+    // State dla wyszukiwarki i filtrów w All view
+    const [searchQuery, setSearchQuery] = useState('');
+    const [filterDate, setFilterDate] = useState('all');
+    const [customDateFrom, setCustomDateFrom] = useState('');
+    const [customDateTo, setCustomDateTo] = useState('');
+    const [filterPriority, setFilterPriority] = useState('all');
+    const [filterProject, setFilterProject] = useState('all');
+    // State dla collapsible
+    
 
     // Onboarding state - shows on first visit only
     const [showOnboarding, setShowOnboarding] = useState(() => {
@@ -275,7 +285,8 @@ export default function App() {
     const [taskIsFlexible, setTaskIsFlexible] = useState(false);
     //all task view
     const [showCompletedQuests, setShowCompletedQuests] = useState(false);
-    
+    // Comment form state
+    const [newCommentText, setNewCommentText] = useState("");
     // Project form state
     const [newProjectName, setNewProjectName] = useState("");
     const [newProjectDesc, setNewProjectDesc] = useState("");
@@ -292,7 +303,9 @@ export default function App() {
     const today = getToday();
     const tomorrow = getTomorrow();
     const weekDates = getWeekDates(selectedDate);
-    const monthDates = getMonthDates(selectedMonth);
+    const monthDates = useMemo(() => {
+        return getMonthDates(selectedMonth);
+    }, [selectedMonth]);
     const dailyTasks = getTasksForDate(tasks, selectedDate);
     const sortedTasks = sortTasks(tasks);
     const xpForNextLevel = calculateXpForLevel(character.level);
@@ -394,6 +407,13 @@ export default function App() {
         setShowCompletedTaskModal(true);
     }
 
+    function closeCompletedTaskModal() {
+        setShowCompletedTaskModal(false);
+        setViewingTask(null);
+        setNewCommentText("");
+    }
+
+
     function closeTaskModal() {
         setShowTaskModal(false);
         setEditingTask(null);
@@ -409,6 +429,7 @@ export default function App() {
             projectId: taskProjectId || null,
             name: taskName,
             description: taskDescription,
+            comments: editingTask?.comments ?? [],
             completed: editingTask?.completed || false,
             completedAt: editingTask?.completedAt,
             xpReward: getRarityXP(taskPriority), // Auto-assign XP based on rarity
@@ -526,6 +547,44 @@ export default function App() {
                 });
             }
         }
+    }
+
+    function addCommentToTask(taskId: string) {
+        if (!newCommentText.trim()) return;
+
+        const updatedTasks = tasks.map((t) => {
+            if (t.id !== taskId) return t;
+
+            const existingComments = t.comments ?? [];
+
+            return {
+                ...t,
+                comments: [
+                    ...existingComments,
+                    {
+                        id: Date.now().toString(),
+                        text: newCommentText.trim(),
+                        createdAt: new Date().toISOString(),
+                    },
+                ],
+            };
+        });
+
+        setTasks(updatedTasks);
+
+        // ważne: zaktualizuj editingTask, jeśli edytujesz ten task
+        if (editingTask && editingTask.id === taskId) {
+            const updated = updatedTasks.find((t) => t.id === taskId) || null;
+            setEditingTask(updated);
+        }
+
+        // opcjonalnie: jeśli masz też modal podglądu z viewingTask
+        if (viewingTask && viewingTask.id === taskId) {
+            const updated = updatedTasks.find((t) => t.id === taskId) || null;
+            setViewingTask(updated);
+        }
+
+        setNewCommentText("");
     }
 
     // ========== CHARACTER STAT FUNCTIONS ==========
@@ -1081,7 +1140,7 @@ export default function App() {
                                 <button
                                     onClick={goToNextMonth}
                                     className="px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-slate-100 hover:bg-slate-700 transition"
-                                    title="Next month"
+                                    title="Previous month"
                                 >
                                     →
                                 </button>
@@ -1110,21 +1169,19 @@ export default function App() {
                                     <button
                                         key={date}
                                         onClick={() => setSelectedDayModal(new Date(date))}
-                                        className={`bg-slate-900 rounded-lg p-3 sm:p-4 border ${
-                                            isToday ? "border-indigo-500 ring-1 sm:ring-2 ring-indigo-500" : "border-slate-700"
-                                        } hover:bg-slate-800 transition-all cursor-pointer aspect-square flex flex-col items-center justify-center gap-1`}
+                                        className={`bg-slate-900 rounded-lg p-3 sm:p-4 border ${isToday ? "border-indigo-500 ring-1 sm:ring-2 ring-indigo-500" : "border-slate-700"
+                                            } hover:bg-slate-800 transition-all cursor-pointer aspect-square flex flex-col items-center justify-center gap-1`}
                                     >
                                         {/* Numer dnia */}
                                         <p className={`text-base sm:text-xl font-semibold ${isToday ? "text-indigo-400" : "text-slate-100"}`}>
                                             {date.split("-")[2]}
                                         </p>
-                                        
+
                                         {/* Licznik tasków */}
                                         {dayTasks.length > 0 && (
                                             <div className="flex flex-col items-center gap-0.5">
-                                                <div className={`text-xs sm:text-sm font-medium ${
-                                                    completedCount === dayTasks.length ? "text-green-400" : "text-slate-300"
-                                                }`}>
+                                                <div className={`text-xs sm:text-sm font-medium ${completedCount === dayTasks.length ? "text-green-400" : "text-slate-300"
+                                                    }`}>
                                                     {completedCount}/{dayTasks.length}
                                                 </div>
                                                 {completedCount === dayTasks.length && dayTasks.length > 0 && (
@@ -1139,234 +1196,574 @@ export default function App() {
                     </div>
                 )}
 
-                {/* All Tasks View - WITH COLLAPSIBLE COMPLETED SECTION */}
-{view === "all" && (
-    <div className="space-y-6 max-w-7xl mx-auto">
-        {/* Header z przyciskiem Add Quest */}
-        <div className="bg-slate-800 rounded-xl shadow p-4 sm:p-6 border border-slate-700">
-            <div className="flex justify-between items-center">
-                <h2 className="text-2xl font-semibold">All Quests</h2>
-                <button
-                    onClick={() => openTaskModal()}
-                    className="bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700 transition"
-                >
-                    + Add Quest
-                </button>
-            </div>
-        </div>
+                {/* All Tasks View - WITH SEARCH, FILTERS & COLLAPSIBLE */}
+                {view === "all" && (() => {
+                    // Apply filters and search
+                    const filteredTasks = sortedTasks.filter(task => {
+                        // Search filter
+                        if (searchQuery.trim()) {
+                            const query = searchQuery.toLowerCase();
+                            const matchesName = task.name.toLowerCase().includes(query);
+                            const matchesDescription = task.description?.toLowerCase().includes(query);
 
-        {/* GROUP 1: ACTIVE QUESTS - ALWAYS EXPANDED */}
-        <div className="bg-slate-800 rounded-xl shadow p-4 sm:p-6 border border-slate-700">
-            <div className="flex items-center gap-2 mb-6">
-                <span className="text-2xl">⚔️</span>
-                <h3 className="text-xl font-semibold text-indigo-400">Active Quests</h3>
-                <span className="ml-auto text-sm text-slate-400 bg-slate-700 px-3 py-1 rounded-full">
-                    {sortedTasks.filter(t => !t.completed).length} active
-                </span>
-            </div>
-
-            <div className="space-y-3">
-                {sortedTasks.filter(t => !t.completed).length === 0 ? (
-                    <div className="text-center py-12 text-slate-400">
-                        <p className="text-lg mb-2">No active quests</p>
-                        <p className="text-sm">Start your adventure by creating your first quest!</p>
-                    </div>
-                ) : (
-                    sortedTasks
-                        .filter(t => !t.completed)
-                        .map(task => {
                             const project = task.projectId ? projects.find(p => p.id === task.projectId) : null;
-                            const taskClass = task.classId ? taskClasses.find(c => c.id === task.classId) : null;
-                            const skill = task.skillId ? skills.find(s => s.id === task.skillId) : null;
+                            const matchesProject = project?.name.toLowerCase().includes(query);
 
-                            return (
-                                <div
-                                    key={task.id}
-                                    className="bg-slate-900 rounded-lg p-4 border border-slate-700 transition-all hover:border-indigo-500/50"
-                                >
-                                    <div className="flex items-start gap-4">
-                                        <input
-                                            type="checkbox"
-                                            checked={task.completed}
-                                            onChange={(e) => {
-                                                e.stopPropagation();
-                                                toggleTask(task.id);
-                                            }}
-                                            className="mt-1 w-5 h-5 rounded border-slate-600 text-indigo-600 focus:ring-indigo-500"
-                                        />
-                                        <div className="flex-1">
-                                            <div className="flex items-start justify-between">
-                                                <div className="flex-1">
-                                                    <h3 className="text-lg font-semibold">
-                                                        {task.name}
-                                                    </h3>
-                                                    {task.description && (
-                                                        <p className="text-sm text-slate-400 mt-1">{task.description}</p>
-                                                    )}
-                                                    <div className="flex flex-wrap gap-2 mt-3">
-                                                        <span className="text-xs px-3 py-1 rounded-full bg-indigo-900 text-indigo-300 border border-indigo-700">
-                                                            {task.xpReward} XP
-                                                        </span>
-                                                        {task.priority && <RarityBadge rarity={task.priority} />}
-                                                        {task.dueDate && (
-                                                            <span className="text-xs px-3 py-1 rounded-full bg-slate-700 text-slate-300 border border-slate-600">
-                                                                📅 {task.dueDate}
-                                                            </span>
-                                                        )}
-                                                        {task.isFlexible && (
-                                                            <span className="text-xs px-3 py-1 rounded-full bg-teal-900 text-teal-300 border border-teal-700">
-                                                                🕐 Flexible
-                                                            </span>
-                                                        )}
-                                                        {project && (
-                                                            <span
-                                                                className="text-xs px-3 py-1 rounded-full border"
-                                                                style={{
-                                                                    borderColor: project.color,
-                                                                    color: project.color,
-                                                                    backgroundColor: `${project.color}20`,
-                                                                }}
-                                                            >
-                                                                {project.name}
-                                                            </span>
-                                                        )}
-                                                        {taskClass && (
-                                                            <span
-                                                                className="text-xs px-3 py-1 rounded-full border"
-                                                                style={{
-                                                                    borderColor: taskClass.color,
-                                                                    color: taskClass.color,
-                                                                    backgroundColor: `${taskClass.color}20`,
-                                                                }}
-                                                            >
-                                                                {taskClass.name}
-                                                            </span>
-                                                        )}
-                                                        {skill && (
-                                                            <span
-                                                                className="text-xs px-3 py-1 rounded-full border"
-                                                                style={{
-                                                                    borderColor: skill.color,
-                                                                    color: skill.color,
-                                                                    backgroundColor: `${skill.color}20`,
-                                                                }}
-                                                            >
-                                                                {skill.name}
-                                                            </span>
-                                                        )}
-                                                        {task.isRecurring && (
-                                                            <span className="text-xs px-3 py-1 rounded-full bg-purple-900 text-purple-300 border border-purple-700">
-                                                                🔄 {task.recurringType}
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                                <div className="flex gap-2 ml-4">
-                                                    <button
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            openEditModal(task);
-                                                        }}
-                                                        className="text-slate-400 hover:text-indigo-400 transition"
-                                                    >
-                                                        ✏️
-                                                    </button>
-                                                    <button
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            deleteTask(task.id);
-                                                        }}
-                                                        className="text-slate-400 hover:text-rose-400 transition"
-                                                    >
-                                                        🗑️
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        </div>
+                            const taskClass = task.classId ? taskClasses.find(c => c.id === task.classId) : null;
+                            const matchesClass = taskClass?.name.toLowerCase().includes(query);
+
+                            const skill = task.skillId ? skills.find(s => s.id === task.skillId) : null;
+                            const matchesSkill = skill?.name.toLowerCase().includes(query);
+
+                            if (!(matchesName || matchesDescription || matchesProject || matchesClass || matchesSkill)) {
+                                return false;
+                            }
+                        }
+
+                        // Date filter
+                        if (filterDate !== 'all') {
+                            const today = new Date().toISOString().split('T')[0];
+
+                            if (filterDate === 'custom') {
+                                // Custom date range filtering
+                                if (customDateFrom && task.dueDate && task.dueDate < customDateFrom) return false;
+                                if (customDateTo && task.dueDate && task.dueDate > customDateTo) return false;
+                                // If no dueDate and custom range is set, exclude
+                                if ((customDateFrom || customDateTo) && !task.dueDate) return false;
+                            } else if (filterDate === 'overdue' && task.dueDate) {
+                                if (task.dueDate >= today || task.completed) return false;
+                            } else if (filterDate === 'today') {
+                                if (task.dueDate !== today) return false;
+                            } else if (filterDate === 'tomorrow') {
+                                const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0];
+                                if (task.dueDate !== tomorrow) return false;
+                            } else if (filterDate === 'week') {
+                                const weekFromNow = new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0];
+                                if (!task.dueDate || task.dueDate > weekFromNow) return false;
+                            } else if (filterDate === 'no-date') {
+                                if (task.dueDate && !task.isFlexible) return false;
+                            }
+                        }
+
+                        // Priority filter
+                        if (filterPriority !== 'all' && task.priority !== filterPriority) {
+                            return false;
+                        }
+
+                        // Project filter
+                        if (filterProject !== 'all' && task.projectId !== filterProject) {
+                            return false;
+                        }
+
+                        return true;
+                    });
+
+                    const activeCount = filteredTasks.filter(t => !t.completed).length;
+                    const completedCount = filteredTasks.filter(t => t.completed).length;
+                    const hasActiveFilters = filterDate !== 'all' || filterPriority !== 'all' || filterProject !== 'all';
+
+                    return (
+                        <div className="space-y-6 max-w-7xl mx-auto">
+                            {/* Header z przyciskiem Add Quest i wyszukiwarką */}
+                            <div className="bg-slate-800 rounded-xl shadow p-4 sm:p-6 border border-slate-700">
+                                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
+                                    <h2 className="text-2xl font-semibold">All Quests</h2>
+                                    <button
+                                        onClick={() => openTaskModal()}
+                                        className="bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700 transition whitespace-nowrap"
+                                    >
+                                        + Add Quest
+                                    </button>
+                                </div>
+
+                                {/* Search Bar */}
+                                <div className="relative mb-4">
+                                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                        <span className="text-slate-400">🔍</span>
+                                    </div>
+                                    <input
+                                        type="text"
+                                        value={searchQuery}
+                                        onChange={(e) => setSearchQuery(e.target.value)}
+                                        placeholder="Search quests by name, description, project, class, or skill..."
+                                        className="w-full pl-10 pr-10 py-3 bg-slate-900 border border-slate-700 rounded-lg text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                                    />
+                                    {searchQuery && (
+                                        <button
+                                            onClick={() => setSearchQuery('')}
+                                            className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-200 transition"
+                                            title="Clear search"
+                                        >
+                                            ✕
+                                        </button>
+                                    )}
+                                </div>
+
+                                {/* Filters */}
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+                                    {/* Date Filter */}
+                                    <DateRangeFilter
+                                        filterDate={filterDate}
+                                        setFilterDate={setFilterDate}
+                                        customDateFrom={customDateFrom}
+                                        setCustomDateFrom={setCustomDateFrom}
+                                        customDateTo={customDateTo}
+                                        setCustomDateTo={setCustomDateTo}
+                                    />
+
+                                    {/* Priority Filter */}
+                                    <div>
+                                        <label className="block text-xs text-slate-400 mb-1.5">Priority</label>
+                                        <select
+                                            value={filterPriority}
+                                            onChange={(e) => setFilterPriority(e.target.value)}
+                                            className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                        >
+                                            <option value="common">⚪ Common</option>
+                                            <option value="rare">🔵 Rare</option>
+                                            <option value="epic">🟣 Epic</option>
+                                            <option value="legendary">🟠 Legendary</option>
+                                            <option value="unique">🟡 Unique</option>
+                                        </select>
+                                    </div>
+
+                                    {/* Project Filter */}
+                                    <div>
+                                        <label className="block text-xs text-slate-400 mb-1.5">Project</label>
+                                        <select
+                                            value={filterProject}
+                                            onChange={(e) => setFilterProject(e.target.value)}
+                                            className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                        >
+                                            <option value="all">All Projects</option>
+                                            <option value="no-project">📋 No Project</option>
+                                            {projects.map(project => (
+                                                <option key={project.id} value={project.id}>
+                                                    {project.name}
+                                                </option>
+                                            ))}
+                                        </select>
                                     </div>
                                 </div>
-                            );
-                        })
-                )}
-            </div>
-        </div>
 
-        {/* GROUP 2: COMPLETED QUESTS - COLLAPSIBLE (COLLAPSED BY DEFAULT) */}
-        <div className="bg-slate-800 rounded-xl shadow p-4 sm:p-6 border border-slate-700">
-            <div 
-                className="flex items-center gap-2 mb-6 cursor-pointer hover:opacity-80 transition"
-                onClick={() => setShowCompletedQuests(!showCompletedQuests)}
-            >
-                <span className="text-xl text-slate-400">
-                    {showCompletedQuests ? '▼' : '▶'}
-                </span>
-                <span className="text-2xl">✅</span>
-                <h3 className="text-xl font-semibold text-green-400">Completed Quests</h3>
-                <span className="ml-auto text-sm text-slate-400 bg-slate-700 px-3 py-1 rounded-full">
-                    {sortedTasks.filter(t => t.completed).length} completed
-                </span>
-            </div>
-
-            {showCompletedQuests && (
-                <div className="space-y-3">
-                    {sortedTasks.filter(t => t.completed).length === 0 ? (
-                        <div className="text-center py-12 text-slate-400">
-                            <p className="text-lg mb-2">No completed quests yet</p>
-                            <p className="text-sm">Complete your first quest to see it here!</p>
-                        </div>
-                    ) : (
-                        sortedTasks
-                            .filter(t => t.completed)
-                            .map(task => {
-                                const project = task.projectId ? projects.find(p => p.id === task.projectId) : null;
-                                const taskClass = task.classId ? taskClasses.find(c => c.id === task.classId) : null;
-                                const skill = task.skillId ? skills.find(s => s.id === task.skillId) : null;
-
-                                return (
-                                    <div
-                                        key={task.id}
-                                        className="bg-slate-900 rounded-lg p-4 border border-slate-700 transition-all opacity-60 cursor-pointer hover:opacity-80 hover:border-green-500/50"
-                                        onClick={() => openCompletedTaskView(task)}
+                                {/* Clear Filters Button */}
+                                {hasActiveFilters && (
+                                    <button
+                                        onClick={() => {
+                                            setFilterDate('all');
+                                            setFilterPriority('all');
+                                            setFilterProject('all');
+                                            setCustomDateFrom('');  // ⬅️ DODAJ
+                                            setCustomDateTo('');    // ⬅️ DODAJ
+                                        }}
+                                        className="text-sm text-indigo-400 hover:text-indigo-300 transition flex items-center gap-1"
                                     >
-                                        <div className="flex items-start gap-4">
-                                            <input
-                                                type="checkbox"
-                                                checked={task.completed}
-                                                onChange={(e) => {
-                                                    e.stopPropagation();
-                                                    toggleTask(task.id);
+                                        <span>✕</span>
+                                        <span>Clear all filters</span>
+                                    </button>
+                                )}
+
+                                {/* Search & Filter Results Info */}
+                                {(searchQuery || hasActiveFilters) && (
+                                    <div className="mt-3 text-sm text-slate-400">
+                                        Found <span className="text-indigo-400 font-semibold">{filteredTasks.length}</span> quest{filteredTasks.length !== 1 ? 's' : ''}
+                                        {filteredTasks.length > 0 && (
+                                            <span> ({activeCount} active, {completedCount} completed)</span>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* No Results Message */}
+                            {(searchQuery || hasActiveFilters) && filteredTasks.length === 0 ? (
+                                <div className="bg-slate-800 rounded-xl shadow p-8 border border-slate-700 text-center">
+                                    <div className="text-6xl mb-4">🔍</div>
+                                    <h3 className="text-xl font-semibold text-slate-300 mb-2">No quests found</h3>
+                                    <p className="text-slate-400 mb-4">
+                                        {searchQuery ? (
+                                            <>No quests match "<span className="text-indigo-400">{searchQuery}</span>"</>
+                                        ) : (
+                                            'No quests match the selected filters'
+                                        )}
+                                    </p>
+                                    <div className="flex flex-wrap gap-2 justify-center">
+                                        {searchQuery && (
+                                            <button
+                                                onClick={() => setSearchQuery('')}
+                                                className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-lg transition"
+                                            >
+                                                Clear search
+                                            </button>
+                                        )}
+                                        {hasActiveFilters && (
+                                            <button
+                                                onClick={() => {
+                                                    setFilterDate('all');
+                                                    setFilterPriority('all');
+                                                    setFilterProject('all');
                                                 }}
-                                                className="mt-1 w-5 h-5 rounded border-slate-600 text-green-600 focus:ring-green-500"
-                                            />
-                                            <div className="flex-1">
-                                                <div className="flex items-start justify-between">
+                                                className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-lg transition"
+                                            >
+                                                Clear filters
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+                            ) : (
+                                <>
+                                    {/* GROUP 1: ACTIVE QUESTS */}
+                                    <div className="bg-slate-800 rounded-xl shadow p-4 sm:p-6 border border-slate-700">
+                                        <div className="flex items-center gap-2 mb-6">
+                                            <span className="text-2xl">⚔️</span>
+                                            <h3 className="text-xl font-semibold text-indigo-400">Active Quests</h3>
+                                            <span className="ml-auto text-sm text-slate-400 bg-slate-700 px-3 py-1 rounded-full">
+                                                {activeCount} active
+                                            </span>
+                                        </div>
+
+                                        <div className="space-y-3">
+                                            {activeCount === 0 ? (
+                                                <div className="text-center py-12 text-slate-400">
+                                                    <p className="text-lg mb-2">
+                                                        {searchQuery || hasActiveFilters ? 'No active quests match your criteria' : 'No active quests'}
+                                                    </p>
+                                                    <p className="text-sm">
+                                                        {searchQuery || hasActiveFilters ? 'Try adjusting your search or filters' : 'Start your adventure by creating your first quest!'}
+                                                    </p>
+                                                </div>
+                                            ) : (
+                                                filteredTasks
+                                                    .filter(t => !t.completed)
+                                                    .map(task => {
+                                                        const project = task.projectId ? projects.find(p => p.id === task.projectId) : null;
+                                                        const taskClass = task.classId ? taskClasses.find(c => c.id === task.classId) : null;
+                                                        const skill = task.skillId ? skills.find(s => s.id === task.skillId) : null;
+
+                                                        return (
+                                                            <div
+                                                                key={task.id}
+                                                                className="bg-slate-900 rounded-lg p-4 border border-slate-700 transition-all hover:border-indigo-500/50"
+                                                            >
+                                                                <div className="flex items-start gap-4">
+                                                                    <input
+                                                                        type="checkbox"
+                                                                        checked={task.completed}
+                                                                        onChange={(e) => {
+                                                                            e.stopPropagation();
+                                                                            toggleTask(task.id);
+                                                                        }}
+                                                                        className="mt-1 w-5 h-5 rounded border-slate-600 text-indigo-600 focus:ring-indigo-500"
+                                                                    />
+                                                                    <div className="flex-1">
+                                                                        <div className="flex items-start justify-between">
+                                                                            <div className="flex-1">
+                                                                                <h3 className="text-lg font-semibold">
+                                                                                    {task.name}
+                                                                                </h3>
+                                                                                {task.description && (
+                                                                                    <p className="text-sm text-slate-400 mt-1">{task.description}</p>
+                                                                                )}
+                                                                                <div className="flex flex-wrap gap-2 mt-3">
+                                                                                    <span className="text-xs px-3 py-1 rounded-full bg-indigo-900 text-indigo-300 border border-indigo-700">
+                                                                                        {task.xpReward} XP
+                                                                                    </span>
+                                                                                    {task.priority && <RarityBadge rarity={task.priority} />}
+                                                                                    {task.dueDate && (
+                                                                                        <span className="text-xs px-3 py-1 rounded-full bg-slate-700 text-slate-300 border border-slate-600">
+                                                                                            📅 {task.dueDate}
+                                                                                        </span>
+                                                                                    )}
+                                                                                    {task.isFlexible && (
+                                                                                        <span className="text-xs px-3 py-1 rounded-full bg-teal-900 text-teal-300 border border-teal-700">
+                                                                                            🕐 Flexible
+                                                                                        </span>
+                                                                                    )}
+                                                                                    {project && (
+                                                                                        <span
+                                                                                            className="text-xs px-3 py-1 rounded-full border"
+                                                                                            style={{
+                                                                                                borderColor: project.color,
+                                                                                                color: project.color,
+                                                                                                backgroundColor: `${project.color}20`,
+                                                                                            }}
+                                                                                        >
+                                                                                            {project.name}
+                                                                                        </span>
+                                                                                    )}
+                                                                                    {taskClass && (
+                                                                                        <span
+                                                                                            className="text-xs px-3 py-1 rounded-full border"
+                                                                                            style={{
+                                                                                                borderColor: taskClass.color,
+                                                                                                color: taskClass.color,
+                                                                                                backgroundColor: `${taskClass.color}20`,
+                                                                                            }}
+                                                                                        >
+                                                                                            {taskClass.name}
+                                                                                        </span>
+                                                                                    )}
+                                                                                    {skill && (
+                                                                                        <span
+                                                                                            className="text-xs px-3 py-1 rounded-full border"
+                                                                                            style={{
+                                                                                                borderColor: skill.color,
+                                                                                                color: skill.color,
+                                                                                                backgroundColor: `${skill.color}20`,
+                                                                                            }}
+                                                                                        >
+                                                                                            {skill.name}
+                                                                                        </span>
+                                                                                    )}
+                                                                                    {task.isRecurring && (
+                                                                                        <span className="text-xs px-3 py-1 rounded-full bg-purple-900 text-purple-300 border border-purple-700">
+                                                                                            🔄 {task.recurringType}
+                                                                                        </span>
+                                                                                    )}
+                                                                                </div>
+                                                                            </div>
+                                                                            <div className="flex gap-2 ml-4">
+                                                                                <button
+                                                                                    onClick={(e) => {
+                                                                                        e.stopPropagation();
+                                                                                        openEditModal(task);
+                                                                                    }}
+                                                                                    className="text-slate-400 hover:text-indigo-400 transition"
+                                                                                >
+                                                                                    ✏️
+                                                                                </button>
+                                                                                <button
+                                                                                    onClick={(e) => {
+                                                                                        e.stopPropagation();
+                                                                                        deleteTask(task.id);
+                                                                                    }}
+                                                                                    className="text-slate-400 hover:text-rose-400 transition"
+                                                                                >
+                                                                                    🗑️
+                                                                                </button>
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    })
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    {/* GROUP 2: COMPLETED QUESTS */}
+                                    <div className="bg-slate-800 rounded-xl shadow p-4 sm:p-6 border border-slate-700">
+                                        <div
+                                            className="flex items-center gap-2 mb-6 cursor-pointer hover:opacity-80 transition"
+                                            onClick={() => setShowCompletedQuests(!showCompletedQuests)}
+                                        >
+                                            <span className="text-xl text-slate-400">
+                                                {showCompletedQuests ? '▼' : '▶'}
+                                            </span>
+                                            <span className="text-2xl">✅</span>
+                                            <h3 className="text-xl font-semibold text-green-400">Completed Quests</h3>
+                                            <span className="ml-auto text-sm text-slate-400 bg-slate-700 px-3 py-1 rounded-full">
+                                                {completedCount} completed
+                                            </span>
+                                        </div>
+
+                                        {showCompletedQuests && (
+                                            <div className="space-y-3">
+                                                {completedCount === 0 ? (
+                                                    <div className="text-center py-12 text-slate-400">
+                                                        <p className="text-lg mb-2">
+                                                            {searchQuery || hasActiveFilters ? 'No completed quests match your criteria' : 'No completed quests yet'}
+                                                        </p>
+                                                        <p className="text-sm">
+                                                            {searchQuery || hasActiveFilters ? 'Try adjusting your search or filters' : 'Complete your first quest to see it here!'}
+                                                        </p>
+                                                    </div>
+                                                ) : (
+                                                    filteredTasks
+                                                        .filter(t => t.completed)
+                                                        .map(task => {
+                                                            const project = task.projectId ? projects.find(p => p.id === task.projectId) : null;
+                                                            const taskClass = task.classId ? taskClasses.find(c => c.id === task.classId) : null;
+                                                            const skill = task.skillId ? skills.find(s => s.id === task.skillId) : null;
+
+                                                            return (
+                                                                <div
+                                                                    key={task.id}
+                                                                    className="bg-slate-900 rounded-lg p-4 border border-slate-700 transition-all opacity-60 cursor-pointer hover:opacity-80 hover:border-green-500/50"
+                                                                    onClick={() => openCompletedTaskView(task)}
+                                                                >
+                                                                    <div className="flex items-start gap-4">
+                                                                        <input
+                                                                            type="checkbox"
+                                                                            checked={task.completed}
+                                                                            onChange={(e) => {
+                                                                                e.stopPropagation();
+                                                                                toggleTask(task.id);
+                                                                            }}
+                                                                            className="mt-1 w-5 h-5 rounded border-slate-600 text-green-600 focus:ring-green-500"
+                                                                        />
+                                                                        <div className="flex-1">
+                                                                            <div className="flex items-start justify-between">
+                                                                                <div className="flex-1">
+                                                                                    <h3 className="text-lg font-semibold line-through text-slate-500">
+                                                                                        {task.name}
+                                                                                    </h3>
+                                                                                    {task.description && (
+                                                                                        <p className="text-sm text-slate-400 mt-1">{task.description}</p>
+                                                                                    )}
+                                                                                    <div className="flex flex-wrap gap-2 mt-3">
+                                                                                        <span className="text-xs px-3 py-1 rounded-full bg-green-900 text-green-300 border border-green-700">
+                                                                                            ✓ {task.xpReward} XP Gained
+                                                                                        </span>
+                                                                                        {task.priority && <RarityBadge rarity={task.priority} />}
+                                                                                        {task.dueDate && (
+                                                                                            <span className="text-xs px-3 py-1 rounded-full bg-slate-700 text-slate-300 border border-slate-600">
+                                                                                                📅 {task.dueDate}
+                                                                                            </span>
+                                                                                        )}
+                                                                                        {task.completedAt && (
+                                                                                            <span className="text-xs px-3 py-1 rounded-full bg-slate-700 text-slate-300 border border-slate-600">
+                                                                                                ✓ {task.completedAt}
+                                                                                            </span>
+                                                                                        )}
+                                                                                        {task.isFlexible && (
+                                                                                            <span className="text-xs px-3 py-1 rounded-full bg-teal-900 text-teal-300 border border-teal-700">
+                                                                                                🕐 Flexible
+                                                                                            </span>
+                                                                                        )}
+                                                                                        {project && (
+                                                                                            <span
+                                                                                                className="text-xs px-3 py-1 rounded-full border"
+                                                                                                style={{
+                                                                                                    borderColor: project.color,
+                                                                                                    color: project.color,
+                                                                                                    backgroundColor: `${project.color}20`,
+                                                                                                }}
+                                                                                            >
+                                                                                                {project.name}
+                                                                                            </span>
+                                                                                        )}
+                                                                                        {taskClass && (
+                                                                                            <span
+                                                                                                className="text-xs px-3 py-1 rounded-full border"
+                                                                                                style={{
+                                                                                                    borderColor: taskClass.color,
+                                                                                                    color: taskClass.color,
+                                                                                                    backgroundColor: `${taskClass.color}20`,
+                                                                                                }}
+                                                                                            >
+                                                                                                {taskClass.name}
+                                                                                            </span>
+                                                                                        )}
+                                                                                        {skill && (
+                                                                                            <span
+                                                                                                className="text-xs px-3 py-1 rounded-full border"
+                                                                                                style={{
+                                                                                                    borderColor: skill.color,
+                                                                                                    color: skill.color,
+                                                                                                    backgroundColor: `${skill.color}20`,
+                                                                                                }}
+                                                                                            >
+                                                                                                {skill.name}
+                                                                                            </span>
+                                                                                        )}
+                                                                                        {task.isRecurring && (
+                                                                                            <span className="text-xs px-3 py-1 rounded-full bg-purple-900 text-purple-300 border border-purple-700">
+                                                                                                🔄 {task.recurringType}
+                                                                                            </span>
+                                                                                        )}
+                                                                                    </div>
+                                                                                </div>
+                                                                                <div className="flex gap-2 ml-4">
+                                                                                    <button
+                                                                                        onClick={(e) => {
+                                                                                            e.stopPropagation();
+                                                                                            openEditModal(task);
+                                                                                        }}
+                                                                                        className="text-slate-400 hover:text-indigo-400 transition"
+                                                                                    >
+                                                                                        ✏️
+                                                                                    </button>
+                                                                                    <button
+                                                                                        onClick={(e) => {
+                                                                                            e.stopPropagation();
+                                                                                            deleteTask(task.id);
+                                                                                        }}
+                                                                                        className="text-slate-400 hover:text-rose-400 transition"
+                                                                                    >
+                                                                                        🗑️
+                                                                                    </button>
+                                                                                </div>
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            );
+                                                        })
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
+                                </>
+                            )}
+                        </div>
+                    );
+                })()}
+
+                {/* NOWE: Active Tasks View */}
+                {view === "activeTasks" && (
+                    <div className="bg-slate-800 rounded-xl shadow p-4 sm:p-6 border border-slate-700 max-w-7xl mx-auto">
+                        <div className="flex justify-between items-center mb-6">
+                            <div>
+                                <h2 className="text-2xl font-semibold">🔥 Active Tasks</h2>
+                                <p className="text-sm text-slate-400 mt-1">Today's tasks (including recurring), overdue backlog, flexible tasks, and tomorrow's planning</p>
+                            </div>
+                            <button
+                                onClick={() => openTaskModal()}
+                                className="bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700 transition"
+                            >
+                                + Add Quest
+                            </button>
+                        </div>
+
+                        {/* Backlog - przeterminowane zadania */}
+                        <div className="mb-6">
+                            <h3 className="text-lg font-semibold mb-3 text-rose-400">⏰ Backlog (Overdue Tasks)</h3>
+                            <div className="space-y-3">
+                                {sortedBacklogTasks.length === 0 ? (
+                                    <p className="text-slate-400 text-sm">No overdue tasks</p>
+                                ) : (
+                                    sortedBacklogTasks.map(task => {
+                                        const project = task.projectId ? projects.find(p => p.id === task.projectId) : null;
+                                        const taskClass = task.classId ? taskClasses.find(c => c.id === task.classId) : null;
+                                        const skill = task.skillId ? skills.find(s => s.id === task.skillId) : null;
+
+                                        return (
+                                            <div key={task.id} onClick={(e) => {
+                                                if ((e.target as HTMLElement).tagName !== 'INPUT') {
+                                                    openEditModal(task);
+                                                }
+                                            }} className="bg-slate-900 rounded-lg p-4 border border-rose-700/50 cursor-pointer hover:border-rose-600 transition">
+                                                <div className="flex items-start gap-4">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={task.completed}
+                                                        onChange={() => toggleTask(task.id, today)}
+                                                        className="mt-1 w-5 h-5 rounded border-slate-600 text-rose-600 focus:ring-rose-500"
+                                                    />
                                                     <div className="flex-1">
-                                                        <h3 className="text-lg font-semibold line-through text-slate-500">
-                                                            {task.name}
-                                                        </h3>
+                                                        <h3 className="text-lg font-semibold">{task.name}</h3>
                                                         {task.description && (
                                                             <p className="text-sm text-slate-400 mt-1">{task.description}</p>
                                                         )}
                                                         <div className="flex flex-wrap gap-2 mt-3">
-                                                            <span className="text-xs px-3 py-1 rounded-full bg-green-900 text-green-300 border border-green-700">
-                                                                ✓ {task.xpReward} XP Gained
+                                                            <span className="text-xs px-3 py-1 rounded-full bg-rose-900 text-rose-300 border border-rose-700">
+                                                                ⏰ Due: {formatShortDate(task.dueDate || '')}
+                                                            </span>
+                                                            <span className="text-xs px-3 py-1 rounded-full bg-indigo-900 text-indigo-300 border border-indigo-700">
+                                                                {task.xpReward} XP
                                                             </span>
                                                             {task.priority && <RarityBadge rarity={task.priority} />}
-                                                            {task.dueDate && (
-                                                                <span className="text-xs px-3 py-1 rounded-full bg-slate-700 text-slate-300 border border-slate-600">
-                                                                    📅 {task.dueDate}
-                                                                </span>
-                                                            )}
-                                                            {task.completedAt && (
-                                                                <span className="text-xs px-3 py-1 rounded-full bg-slate-700 text-slate-300 border border-slate-600">
-                                                                    ✓ Completed: {task.completedAt}
-                                                                </span>
-                                                            )}
-                                                            {task.isFlexible && (
-                                                                <span className="text-xs px-3 py-1 rounded-full bg-teal-900 text-teal-300 border border-teal-700">
-                                                                    🕐 Flexible
-                                                                </span>
-                                                            )}
                                                             {project && (
                                                                 <span
                                                                     className="text-xs px-3 py-1 rounded-full border"
@@ -1403,60 +1800,14 @@ export default function App() {
                                                                     {skill.name}
                                                                 </span>
                                                             )}
-                                                            {task.isRecurring && (
-                                                                <span className="text-xs px-3 py-1 rounded-full bg-purple-900 text-purple-300 border border-purple-700">
-                                                                    🔄 {task.recurringType}
-                                                                </span>
-                                                            )}
                                                         </div>
-                                                    </div>
-                                                    <div className="flex gap-2 ml-4">
-                                                        <button
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                openEditModal(task);
-                                                            }}
-                                                            className="text-slate-400 hover:text-indigo-400 transition"
-                                                        >
-                                                            ✏️
-                                                        </button>
-                                                        <button
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                deleteTask(task.id);
-                                                            }}
-                                                            className="text-slate-400 hover:text-rose-400 transition"
-                                                        >
-                                                            🗑️
-                                                        </button>
                                                     </div>
                                                 </div>
                                             </div>
-                                        </div>
-                                    </div>
-                                );
-                            })
-                    )}
-                </div>
-            )}
-        </div>
-    </div>
-)}
-
-                {/* NOWE: Active Tasks View */}
-                {view === "activeTasks" && (
-                    <div className="bg-slate-800 rounded-xl shadow p-4 sm:p-6 border border-slate-700 max-w-7xl mx-auto">
-                        <div className="flex justify-between items-center mb-6">
-                            <div>
-                                <h2 className="text-2xl font-semibold">🔥 Active Tasks</h2>
-                                <p className="text-sm text-slate-400 mt-1">Today's tasks (including recurring), overdue backlog, flexible tasks, and tomorrow's planning</p>
+                                        );
+                                    })
+                                )}
                             </div>
-                            <button
-                                onClick={() => openTaskModal()}
-                                className="bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700 transition"
-                            >
-                                + Add Quest
-                            </button>
                         </div>
 
                         {/* Dzisiejsze zadania - BEZ zadań powtarzalnych które są aktywne cały czas */}
@@ -1698,89 +2049,7 @@ export default function App() {
                             </div>
                         </div>
 
-                        {/* Backlog - przeterminowane zadania */}
-                        <div className="mb-6">
-                            <h3 className="text-lg font-semibold mb-3 text-rose-400">⏰ Backlog (Overdue Tasks)</h3>
-                            <div className="space-y-3">
-                                {sortedBacklogTasks.length === 0 ? (
-                                    <p className="text-slate-400 text-sm">No overdue tasks</p>
-                                ) : (
-                                    sortedBacklogTasks.map(task => {
-                                        const project = task.projectId ? projects.find(p => p.id === task.projectId) : null;
-                                        const taskClass = task.classId ? taskClasses.find(c => c.id === task.classId) : null;
-                                        const skill = task.skillId ? skills.find(s => s.id === task.skillId) : null;
-
-                                        return (
-                                            <div key={task.id} onClick={(e) => {
-                                                if ((e.target as HTMLElement).tagName !== 'INPUT') {
-                                                    openEditModal(task);
-                                                }
-                                            }} className="bg-slate-900 rounded-lg p-4 border border-rose-700/50 cursor-pointer hover:border-rose-600 transition">
-                                                <div className="flex items-start gap-4">
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={task.completed}
-                                                        onChange={() => toggleTask(task.id, today)}
-                                                        className="mt-1 w-5 h-5 rounded border-slate-600 text-rose-600 focus:ring-rose-500"
-                                                    />
-                                                    <div className="flex-1">
-                                                        <h3 className="text-lg font-semibold">{task.name}</h3>
-                                                        {task.description && (
-                                                            <p className="text-sm text-slate-400 mt-1">{task.description}</p>
-                                                        )}
-                                                        <div className="flex flex-wrap gap-2 mt-3">
-                                                            <span className="text-xs px-3 py-1 rounded-full bg-rose-900 text-rose-300 border border-rose-700">
-                                                                ⏰ Due: {formatShortDate(task.dueDate || '')}
-                                                            </span>
-                                                            <span className="text-xs px-3 py-1 rounded-full bg-indigo-900 text-indigo-300 border border-indigo-700">
-                                                                {task.xpReward} XP
-                                                            </span>
-                                                            {task.priority && <RarityBadge rarity={task.priority} />}
-                                                            {project && (
-                                                                <span
-                                                                    className="text-xs px-3 py-1 rounded-full border"
-                                                                    style={{
-                                                                        borderColor: project.color,
-                                                                        color: project.color,
-                                                                        backgroundColor: `${project.color}20`,
-                                                                    }}
-                                                                >
-                                                                    {project.name}
-                                                                </span>
-                                                            )}
-                                                            {taskClass && (
-                                                                <span
-                                                                    className="text-xs px-3 py-1 rounded-full border"
-                                                                    style={{
-                                                                        borderColor: taskClass.color,
-                                                                        color: taskClass.color,
-                                                                        backgroundColor: `${taskClass.color}20`,
-                                                                    }}
-                                                                >
-                                                                    {taskClass.name}
-                                                                </span>
-                                                            )}
-                                                            {skill && (
-                                                                <span
-                                                                    className="text-xs px-3 py-1 rounded-full border"
-                                                                    style={{
-                                                                        borderColor: skill.color,
-                                                                        color: skill.color,
-                                                                        backgroundColor: `${skill.color}20`,
-                                                                    }}
-                                                                >
-                                                                    {skill.name}
-                                                                </span>
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        );
-                                    })
-                                )}
-                            </div>
-                        </div>
+                        
 
 
                     </div>
@@ -2425,6 +2694,52 @@ export default function App() {
                                         rows={3}
                                         className="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-lg text-slate-100"
                                     />
+                                </div>
+
+                                <div className="space-y-3 mt-4">
+                                    <label className="block text-sm font-medium text-slate-400 mb-1">
+                                        Comments
+                                    </label>
+
+                                    {editingTask && editingTask.comments && editingTask.comments.length > 0 ? (
+                                        <div className="space-y-2 max-h-40 overflow-y-auto">
+                                            {editingTask.comments.map((comment) => (
+                                                <div
+                                                    key={comment.id}
+                                                    className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm"
+                                                >
+                                                    <div className="text-slate-300 break-words">{comment.text}</div>
+                                                    <div className="mt-1 text-xs text-slate-500">
+                                                        {formatFullDateTime(comment.createdAt)}
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <p className="text-xs text-slate-500">
+                                            {editingTask
+                                                ? "No comments yet — add one below."
+                                                : "Comments will be available after creating this quest."}
+                                        </p>
+                                    )}
+
+                                    {editingTask && (
+                                        <div className="flex gap-2 mt-2">
+                                            <input
+                                                type="text"
+                                                value={newCommentText}
+                                                onChange={(e) => setNewCommentText(e.target.value)}
+                                                placeholder="Add a comment..."
+                                                className="flex-1 px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-slate-100 text-sm"
+                                            />
+                                            <button
+                                                onClick={() => addCommentToTask(editingTask.id)}
+                                                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm rounded-lg"
+                                            >
+                                                Add
+                                            </button>
+                                        </div>
+                                    )}
                                 </div>
 
                                 <div>
