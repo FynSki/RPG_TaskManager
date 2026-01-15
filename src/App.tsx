@@ -407,13 +407,7 @@ export default function App() {
         setShowCompletedTaskModal(true);
     }
 
-    function closeCompletedTaskModal() {
-        setShowCompletedTaskModal(false);
-        setViewingTask(null);
-        setNewCommentText("");
-    }
-
-
+    
     function closeTaskModal() {
         setShowTaskModal(false);
         setEditingTask(null);
