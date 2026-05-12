@@ -1,4 +1,4 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import type { Project, Task, Skill, TaskClass } from '../refactored-src/types';
 import { ProjectCard } from './ProjectCard';
 
@@ -308,6 +308,4 @@ export function ProjectsList({
             </div>
         </div>
     );
-
 }
-

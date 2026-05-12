@@ -1,6 +1,11 @@
 {
   "ExpandedNodes": [
-    ""
+    "",
+    "\\src",
+    "\\src\\refactored-src\\constants",
+    "\\src\\refactored-src\\types",
+    "\\src\\refactored-src\\utils"
   ],
+  "SelectedNode": "\\src\\App.tsx",
   "PreviewInSolutionExplorer": false
 }

@@ -23,5 +23,5 @@ dist-ssr
 *.sln
 *.sw?
 
-# Supabase (dla pewno≈õci)
+# Supabase (dla pewnoúci)
 .env.local

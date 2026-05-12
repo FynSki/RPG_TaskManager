@@ -1,5 +1,4 @@
-
-import type { Project, Task, TaskClass, Skill } from '../refactored-src/types';
+﻿import type { Project, Task, TaskClass, Skill } from '../refactored-src/types';
 import { sortTasks } from '../refactored-src/utils/taskUtils';
 import { formatShortDate } from '../refactored-src/utils/dateUtils';
 
@@ -35,6 +34,7 @@ interface ProjectDetailsProps {
     onAddQuest: (projectId: string) => void;
     onEditTask: (task: Task) => void;
     onToggleTask: (taskId: string) => void;
+    onEditProject: (project: Project) => void;
 }
 
 export function ProjectDetails({
@@ -46,6 +46,7 @@ export function ProjectDetails({
     onAddQuest,
     onEditTask,
     onToggleTask,
+    onEditProject,
 }: ProjectDetailsProps) {
     const projectTasks = tasks.filter(t => t.projectId === project.id);
     const sortedProjectTasks = sortTasks(projectTasks);
@@ -71,12 +72,22 @@ export function ProjectDetails({
                         className="bg-slate-800 rounded-xl p-6 border-l-4 border border-slate-700"
                         style={{ borderLeftColor: project.color }}
                     >
-                        <h1
-                            className="text-3xl font-bold mb-2"
-                            style={{ color: project.color }}
-                        >
-                            {project.name}
-                        </h1>
+                        <div className="flex justify-between items-start mb-2">
+                            <h1
+                                className="text-3xl font-bold"
+                                style={{ color: project.color }}
+                            >
+                                {project.name}
+                            </h1>
+                            <button
+                                onClick={() => onEditProject(project)}
+                                className="text-indigo-500 hover:text-indigo-400 transition px-3 py-1 rounded-lg border border-indigo-500 hover:border-indigo-400 flex items-center gap-2"
+                                title="Edit project"
+                            >
+                                <span>✏️</span>
+                                <span className="text-sm">Edit Project</span>
+                            </button>
+                        </div>
                         <p className="text-slate-300 mb-4">{project.description}</p>
 
                         {/* Stats Grid */}
@@ -164,8 +175,8 @@ export function ProjectDetails({
                                             <div className="flex-1">
                                                 <h3
                                                     className={`text-lg font-semibold ${task.completed
-                                                            ? 'line-through text-slate-500'
-                                                            : ''
+                                                        ? 'line-through text-slate-500'
+                                                        : ''
                                                         }`}
                                                 >
                                                     {task.name}
