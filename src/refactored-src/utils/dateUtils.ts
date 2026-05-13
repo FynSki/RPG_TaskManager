@@ -129,7 +129,7 @@ export function addMonths(monthStr: string, months: number): string {
     const [year, month] = monthStr.split("-").map(Number);
     const date = new Date(year, month - 1 + months, 1);
 
-    // Zamiast toISOString() u≈ºyj getFullYear() i getMonth()
+    // Zamiast toISOString() uøyj getFullYear() i getMonth()
     const newYear = date.getFullYear();
     const newMonth = String(date.getMonth() + 1).padStart(2, '0');
 
