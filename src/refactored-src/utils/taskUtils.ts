@@ -138,6 +138,7 @@ export function createNewTask(overrides: Partial<Task> = {}): Task {
         comments: [],
         completed: false,
         xpReward: 50,
+        goldReward: 5,
         priority: "common",
         dueDate: "",
         subtasks: [],

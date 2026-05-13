@@ -18,7 +18,7 @@ export type SubTask = {
 export type TaskComment = {
     id: string;
     text: string;
-    createdAt: string; // ISO string daty komentarza
+    createdAt: string;
 };
 
 export type Task = {
@@ -28,8 +28,10 @@ export type Task = {
     description: string;
     completed: boolean;
     xpReward: number;
+    /** Gold przyznawany za ukończenie — wyliczany automatycznie z priority */
+    goldReward: number;
     priority: "common" | "rare" | "epic" | "legendary" | "unique";
-    dueDate: string; // może być pusty string dla flexible tasks
+    dueDate: string;
     subtasks: SubTask[];
     createdAt: string;
     completedAt?: string;
@@ -50,6 +52,10 @@ export type Character = {
     xp: number;
     totalXp: number;
     avatar: string;
+    /** Aktualne gold postaci */
+    gold: number;
+    /** Łączne gold zdobyte w historii (do statystyk) */
+    totalGold: number;
     strength: number;
     strengthProgress: number;
     endurance: number;
@@ -84,6 +90,14 @@ export type Skill = {
     color?: string;
 };
 
-export type ViewType = "character" | "activeTasks" | "daily" | "weekly" | "monthly" | "all" | "projects" | "settings";
+export type ViewType =
+    | "character"
+    | "activeTasks"
+    | "daily"
+    | "weekly"
+    | "monthly"
+    | "all"
+    | "projects"
+    | "settings";
 
 export type StatType = "strength" | "endurance" | "intelligence" | "agility" | "charisma";
