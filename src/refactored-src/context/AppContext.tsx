@@ -70,6 +70,7 @@ export type AppContextValue = {
     selectedDate: string;
     setSelectedDate: (d: string) => void;
     selectedMonth: string;
+    setSelectedMonth: (m: string) => void;
     isPremium: boolean;
 
     // ── Nawigacja datowa ──────────────────────────────────────────────────────
@@ -700,7 +701,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setRecurringCompletions(data.recurringCompletions);
     }
 
-    // ── Character update ─────────────────────────────────────────────────────
     function updateCharacter(patch: Partial<Character>) {
         setCharacter(prev => ({ ...prev, ...patch }));
     }
@@ -708,7 +708,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     // ── Context value ─────────────────────────────────────────────────────────
     const value: AppContextValue = {
         tasks, projects, taskClasses, skills, character, updateCharacter, recurringCompletions,
-        view, setView, selectedDate, setSelectedDate, selectedMonth, isPremium,
+        view, setView, selectedDate, setSelectedDate, selectedMonth, setSelectedMonth, isPremium,
         goToPreviousWeek, goToNextWeek, goToPreviousMonth, goToNextMonth,
         today, tomorrow, weekDates, monthDates, xpForNextLevel,
         sortedTasks, sortedDailyTasks, sortedTodayTasks, sortedTomorrowTasks,
@@ -727,7 +727,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
         showEditProjectModal, editingProject,
         levelUpQueue, popLevelUp,
         pendingDeleteTaskId, setPendingDeleteTaskId,
-        confirmDeleteTask,
         isSkillPanelOpen, setIsSkillPanelOpen,
         isTaskClassPanelOpen, setIsTaskClassPanelOpen,
         showCompletedQuests, setShowCompletedQuests,
