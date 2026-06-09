@@ -5,12 +5,11 @@
     "\\android\\app",
     "\\android\\app\\src",
     "\\android\\app\\src\\main",
-    "\\src",
     "\\src\\refactored-src",
     "\\src\\refactored-src\\utils",
     "\\src\\refactored-src\\views",
     "\\src\\services"
   ],
-  "SelectedNode": "\\src\\refactored-src\\utils\\useSwipeNavigation.ts",
+  "SelectedNode": "\\capacitor.config.ts",
   "PreviewInSolutionExplorer": false
 }

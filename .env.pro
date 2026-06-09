@@ -1,0 +1,2 @@
+VITE_IS_PREMIUM=true
+VITE_APP_NAME=RPG Planner Pro

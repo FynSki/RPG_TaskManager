@@ -1,30 +1,22 @@
 ﻿/**
  * AdService — zarządzanie reklamami AdMob
- *
- * Testowe Ad Unit ID (działają zawsze w trybie dev):
- * - Banner:   ca-app-pub-3940256099942544/6300978111
- * - Rewarded: ca-app-pub-3940256099942544/5224354917
- *
- * PRZED PUBLIKACJĄ: zamień na prawdziwe ID z AdMob Console
+ * IS_TESTING = true — zmień na false przed publikacją
  */
 
-import { AdMob, BannerAdSize, BannerAdPosition } from '@capacitor-community/admob';
+import { AdMob, BannerAdSize, BannerAdPosition, BannerAdPluginEvents } from '@capacitor-community/admob';
 import type { BannerAdOptions, RewardAdOptions } from '@capacitor-community/admob';
 
-// ─── Konfiguracja ID ──────────────────────────────────────────────────────────
+const IS_TESTING = false;
 
-// Testowe ID — działają bez konta AdMob
-const TEST_IDS = {
-    banner: 'ca-app-pub-3940256099942544/6300978111',
-    rewarded: 'ca-app-pub-3940256099942544/5224354917',
+const AD_IDS = {
+    banner_test: 'ca-app-pub-3940256099942544/6300978111',
+    rewarded_test: 'ca-app-pub-3940256099942544/5224354917',
+    banner_prod: 'ca-app-pub-9955432050014944/4890433432',
+    rewarded_prod: '',
 };
 
-// PRZED PUBLIKACJĄ: zamień TEST_IDS na swoje prawdziwe ID z AdMob Console:
-// banner:   'ca-app-pub-XXXXXXXXXXXXXXXX/XXXXXXXXXX'
-// rewarded: 'ca-app-pub-XXXXXXXXXXXXXXXX/XXXXXXXXXX'
-const AD_IDS = TEST_IDS;
-
-// ─── Sprawdzenie platformy ────────────────────────────────────────────────────
+const BANNER_ID = IS_TESTING ? AD_IDS.banner_test : AD_IDS.banner_prod;
+const REWARDED_ID = IS_TESTING ? AD_IDS.rewarded_test : AD_IDS.rewarded_prod;
 
 function isNative(): boolean {
     return (
@@ -33,91 +25,65 @@ function isNative(): boolean {
     );
 }
 
-// ─── Inicjalizacja ────────────────────────────────────────────────────────────
-
 export async function initializeAdMob(): Promise<void> {
     if (!isNative()) return;
-
     try {
         await AdMob.initialize({
-            testingDevices: [],  // opcjonalnie: dodaj ID swojego urządzenia testowego
-            initializeForTesting: true, // ustaw na false przed publikacją
+            testingDevices: [],
+            initializeForTesting: IS_TESTING,
         });
-        console.log('AdMob initialized');
+        console.log('AdMob initialized (testing: ' + IS_TESTING + ')');
     } catch (e) {
         console.warn('AdMob initialization failed:', e);
     }
 }
 
-// ─── Banner ───────────────────────────────────────────────────────────────────
-
-/**
- * Pokaż baner reklamowy na dole ekranu
- */
 export async function showBanner(): Promise<void> {
     if (!isNative()) return;
 
     try {
+        // Listenery żeby zobaczyć dokładny błąd w Logcat
+        AdMob.addListener(BannerAdPluginEvents.FailedToLoad, (error: any) => {
+            console.error('Banner failed to load. Error: ' + JSON.stringify(error));
+        });
+
+        AdMob.addListener(BannerAdPluginEvents.Loaded, () => {
+            console.log('Banner loaded successfully!');
+        });
+
         const options: BannerAdOptions = {
-            adId: AD_IDS.banner,
-            adSize: BannerAdSize.ADAPTIVE_BANNER,
+            adId: BANNER_ID,
+            adSize: BannerAdSize.BANNER,
             position: BannerAdPosition.BOTTOM_CENTER,
-            margin: 50,
-            isTesting: true, // ustaw na false przed publikacją
+            margin: 0,
+            isTesting: IS_TESTING,
         };
         await AdMob.showBanner(options);
+        console.log('showBanner called');
     } catch (e) {
         console.warn('Banner ad failed:', e);
     }
 }
 
-/**
- * Ukryj baner (np. gdy otwieramy modal)
- */
 export async function hideBanner(): Promise<void> {
     if (!isNative()) return;
-    try {
-        await AdMob.hideBanner();
-    } catch {
-        // ignoruj
-    }
+    try { await AdMob.hideBanner(); } catch { }
 }
 
-/**
- * Usuń baner całkowicie
- */
 export async function removeBanner(): Promise<void> {
     if (!isNative()) return;
-    try {
-        await AdMob.removeBanner();
-    } catch {
-        // ignoruj
-    }
+    try { await AdMob.removeBanner(); } catch { }
 }
 
-// ─── Rewarded (za Gold) ───────────────────────────────────────────────────────
-
-/**
- * Pokaż reklamę nagrodzoną — użytkownik dostaje Gold za obejrzenie
- * Zwraca true jeśli użytkownik obejrzał całą reklamę
- */
 export async function showRewardedAd(): Promise<boolean> {
     if (!isNative()) return false;
-
     try {
         const options: RewardAdOptions = {
-            adId: AD_IDS.rewarded,
-            isTesting: true, // ustaw na false przed publikacją
-            ssv: {
-                userId: 'rpgplanner-user',
-                customData: JSON.stringify({ reward: 'gold' }),
-            },
+            adId: REWARDED_ID,
+            isTesting: IS_TESTING,
         };
-
         await AdMob.prepareRewardVideoAd(options);
         const result = await AdMob.showRewardVideoAd();
-
-        // result.reward.amount — ilość nagrody (ustawiasz w AdMob Console)
         return !!result;
     } catch (e) {
         console.warn('Rewarded ad failed:', e);

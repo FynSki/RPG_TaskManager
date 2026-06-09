@@ -8,10 +8,17 @@
         android:supportsRtl="true"
         android:theme="@style/AppTheme">
 
-		<!-- AdMob App ID (testowe) — zamień przed publikacją -->
+		<meta-data
+            android:name="com.google.android.gms.ads.AD_MANAGER_APP"
+            android:value="true"/>
+
+		<meta-data
+			android:name="com.google.android.gms.ads.DELAY_APP_MEASUREMENT_INIT"
+			android:value="true"/>
+		<!-- AdMob App ID (prawdziwe) -->
 		<meta-data
             android:name="com.google.android.gms.ads.APPLICATION_ID"
-            android:value="ca-app-pub-3940256099942544~3347511713"/>
+            android:value="ca-app-pub-9955432050014944~3338512766"/>
 
 		<activity
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode|navigation|density"
