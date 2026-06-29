@@ -1,6 +1,15 @@
 {
   "ExpandedNodes": [
-    ""
+    "",
+    "\\android",
+    "\\android\\app",
+    "\\android\\app\\src",
+    "\\android\\app\\src\\main",
+    "\\src\\refactored-src",
+    "\\src\\refactored-src\\utils",
+    "\\src\\refactored-src\\views",
+    "\\src\\services"
   ],
+  "SelectedNode": "\\capacitor.config.ts",
   "PreviewInSolutionExplorer": false
 }

@@ -25,3 +25,18 @@ dist-ssr
 
 # Supabase (dla pewności)
 .env.local
+
+# Visual Studio
+.vs/
+
+# Build artefakty Android
+android/.gradle/
+android/app/build/
+android/build/
+
+# Keystore — nigdy nie wrzucaj!
+*.keystore
+*.jks
+
+# Env files z sekretami
+.env.local

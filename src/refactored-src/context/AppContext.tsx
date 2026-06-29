@@ -701,7 +701,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setRecurringCompletions(data.recurringCompletions);
     }
 
-    // ── Character update ─────────────────────────────────────────────────────
     function updateCharacter(patch: Partial<Character>) {
         setCharacter(prev => ({ ...prev, ...patch }));
     }

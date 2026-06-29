@@ -1,10 +1,15 @@
 ﻿/**
  * SettingsView — widok ustawień
- * Wyciągnięty z App.tsx
+ * Zawiera: Notifications, Export/Import, Rewarded Ad, Danger Zone
  */
 
+import { useState } from 'react';
 import { useAppContext } from "../context/AppContext";
 import { DataManagement } from "../../components/DataManagement";
+import { NotificationSettingsPanel } from "../../components/NotificationSettingsPanel";
+import { showRewardedAd } from "../../services/AdService";
+
+const REWARDED_GOLD = 50; // ile Gold za obejrzenie reklamy
 
 export function SettingsView() {
     const {
@@ -12,7 +17,34 @@ export function SettingsView() {
         showResetConfirm, setShowResetConfirm,
         setShowAboutPage,
         resetProgress, importData,
+        updateCharacter,
     } = useAppContext();
+
+    const [isLoadingAd, setIsLoadingAd] = useState(false);
+    const [adMessage, setAdMessage] = useState<string | null>(null);
+
+    const isNative = typeof window !== 'undefined' &&
+        (window as any).Capacitor?.isNativePlatform?.() === true;
+
+    async function handleWatchAd() {
+        setIsLoadingAd(true);
+        setAdMessage(null);
+        try {
+            const rewarded = await showRewardedAd();
+            if (rewarded) {
+                updateCharacter({
+                    gold: (character.gold ?? 0) + REWARDED_GOLD,
+                    totalGold: (character.totalGold ?? 0) + REWARDED_GOLD,
+                });
+                setAdMessage(`+${REWARDED_GOLD} 🪙 Gold added to your account!`);
+            } else {
+                setAdMessage('Ad was not completed. No reward given.');
+            }
+        } catch {
+            setAdMessage('Ad not available right now. Try again later.');
+        }
+        setIsLoadingAd(false);
+    }
 
     return (
         <div className="bg-slate-800 rounded-xl shadow p-4 sm:p-6 border border-slate-700 max-w-7xl mx-auto">
@@ -20,7 +52,7 @@ export function SettingsView() {
                 <h2 className="text-2xl font-semibold">Settings</h2>
                 <button
                     onClick={() => setShowAboutPage(true)}
-                    className="sm:hidden bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white px-4 py-2 rounded-lg transition flex items-center gap-2 shadow-lg"
+                    className="sm:hidden bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-4 py-2 rounded-lg transition flex items-center gap-2"
                 >
                     <span>ℹ️</span>
                     <span className="font-semibold">About</span>
@@ -28,6 +60,52 @@ export function SettingsView() {
             </div>
 
             <div className="space-y-6">
+                {/* Powiadomienia */}
+                <NotificationSettingsPanel />
+
+                {/* Reklama za Gold — tylko na mobile */}
+                {isNative && (
+                    <div className="bg-slate-900 rounded-xl p-6 border border-yellow-700/30">
+                        <h3 className="text-lg font-semibold mb-2 flex items-center gap-2">
+                            🪙 Earn Gold
+                        </h3>
+                        <p className="text-slate-400 text-sm mb-4">
+                            Watch a short ad to earn <span className="text-yellow-400 font-semibold">{REWARDED_GOLD} Gold</span> — use it to unlock new Skills and Task Classes.
+                        </p>
+
+                        <div className="flex items-center gap-3">
+                            <div className="bg-slate-800 rounded-lg px-4 py-2 border border-slate-700">
+                                <span className="text-yellow-400 font-bold">🪙 {(character.gold ?? 0).toLocaleString()}</span>
+                                <span className="text-slate-400 text-xs ml-1">current</span>
+                            </div>
+                            <button
+                                onClick={handleWatchAd}
+                                disabled={isLoadingAd}
+                                className="flex items-center gap-2 px-5 py-2 bg-yellow-600 hover:bg-yellow-500 text-white rounded-lg transition font-semibold disabled:opacity-50"
+                            >
+                                {isLoadingAd ? (
+                                    <>
+                                        <span className="animate-spin">⏳</span>
+                                        Loading...
+                                    </>
+                                ) : (
+                                    <>
+                                        <span>▶️</span>
+                                        Watch Ad (+{REWARDED_GOLD} Gold)
+                                    </>
+                                )}
+                            </button>
+                        </div>
+
+                        {adMessage && (
+                            <p className={`mt-3 text-sm ${adMessage.includes('+') ? 'text-green-400' : 'text-slate-400'}`}>
+                                {adMessage}
+                            </p>
+                        )}
+                    </div>
+                )}
+
+                {/* Export / Import */}
                 <DataManagement
                     tasks={tasks}
                     character={character}
@@ -38,6 +116,7 @@ export function SettingsView() {
                     onImport={(data) => importData(data)}
                 />
 
+                {/* Danger Zone */}
                 <div className="bg-rose-900 rounded-xl p-6 border border-rose-700">
                     <h3 className="text-xl font-semibold text-rose-100 mb-2">Danger Zone</h3>
                     <p className="text-rose-200 text-sm mb-4">
