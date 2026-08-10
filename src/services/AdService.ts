@@ -1,6 +1,11 @@
 ﻿/**
  * AdService — zarządzanie reklamami AdMob
- * IS_TESTING = true — zmień na false przed publikacją
+ *
+ * App ID:      ca-app-pub-9955432050014944~3338512766
+ * Banner ID:   ca-app-pub-9955432050014944/4890433432
+ * Rewarded ID: ca-app-pub-9955432050014944/2819049653
+ *
+ * IS_TESTING = true — zmień na false przed publikacją aktualizacji
  */
 
 import { AdMob, BannerAdSize, BannerAdPosition, BannerAdPluginEvents } from '@capacitor-community/admob';
@@ -9,13 +14,13 @@ import type { BannerAdOptions, RewardAdOptions } from '@capacitor-community/admo
 const IS_TESTING = false;
 
 const AD_IDS = {
-    banner_test: 'ca-app-pub-3940256099942544/6300978111',
+    banner_test:   'ca-app-pub-3940256099942544/6300978111',
     rewarded_test: 'ca-app-pub-3940256099942544/5224354917',
-    banner_prod: 'ca-app-pub-9955432050014944/4890433432',
-    rewarded_prod: '',
+    banner_prod:   'ca-app-pub-9955432050014944/4890433432',
+    rewarded_prod: 'ca-app-pub-9955432050014944/2819049653',
 };
 
-const BANNER_ID = IS_TESTING ? AD_IDS.banner_test : AD_IDS.banner_prod;
+const BANNER_ID   = IS_TESTING ? AD_IDS.banner_test   : AD_IDS.banner_prod;
 const REWARDED_ID = IS_TESTING ? AD_IDS.rewarded_test : AD_IDS.rewarded_prod;
 
 function isNative(): boolean {
@@ -40,13 +45,10 @@ export async function initializeAdMob(): Promise<void> {
 
 export async function showBanner(): Promise<void> {
     if (!isNative()) return;
-
     try {
-        // Listenery żeby zobaczyć dokładny błąd w Logcat
         AdMob.addListener(BannerAdPluginEvents.FailedToLoad, (error: any) => {
             console.error('Banner failed to load. Error: ' + JSON.stringify(error));
         });
-
         AdMob.addListener(BannerAdPluginEvents.Loaded, () => {
             console.log('Banner loaded successfully!');
         });
@@ -59,7 +61,6 @@ export async function showBanner(): Promise<void> {
             isTesting: IS_TESTING,
         };
         await AdMob.showBanner(options);
-        console.log('showBanner called');
     } catch (e) {
         console.warn('Banner ad failed:', e);
     }
