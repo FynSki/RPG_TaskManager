@@ -82,6 +82,8 @@ export function AboutPage({ onClose }: AboutPageProps) {
                             </span>
                         </div>
 
+
+
                         {/* What is RPG Planner */}
                         <div className="bg-slate-800 rounded-xl p-6 md:p-8 border border-slate-700">
                             <h2 className="text-2xl font-bold mb-4 flex items-center gap-3">
@@ -93,6 +95,24 @@ export function AboutPage({ onClose }: AboutPageProps) {
                                 into epic quests. Complete tasks to earn XP and Gold, level up your character,
                                 unlock new skills, and watch your stats grow as you conquer your goals!
                             </p>
+                        </div>
+
+                        {/* Google Play Badge */}
+                        <div className="bg-slate-800 rounded-xl p-6 md:p-8 border border-indigo-700/50">
+                            <h2 className="text-2xl font-bold mb-4 flex items-center gap-3">
+                                <span className="text-3xl">📱</span>
+                                <span>Mobile App</span>
+                            </h2>
+                            <p className="text-slate-300 mb-4">
+                                RPG Planner is available on Android!
+                            </p>
+                            <a href="https://play.google.com/store/apps/details?id=com.codefusion.rpgplanner" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-3 bg-slate-900 hover:bg-slate-700 border border-slate-600 text-white px-6 py-3 rounded-xl transition">
+                                <span className="text-2xl">▶</span>
+                                <div>
+                                    <div className="text-xs text-slate-400">GET IT ON</div>
+                                    <div className="font-bold">Google Play</div>
+                                </div>
+                            </a>
                         </div>
 
                         {/* Features Grid */}
@@ -206,6 +226,8 @@ export function AboutPage({ onClose }: AboutPageProps) {
                                 </div>
                             </div>
                         </div>
+
+                        
 
                         {/* Privacy Policy */}
                         <div className="bg-slate-800 rounded-xl p-6 md:p-8 border border-slate-700">
