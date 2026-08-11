@@ -5,6 +5,7 @@
 import React from 'react';
 import { AppProvider, useAppContext } from './refactored-src/context/AppContext';
 import { useSwipeNavigation } from './refactored-src/utils/useSwipeNavigation';
+import { MobileAppBanner } from './components/MobileAppBanner';
 
 import { TopBar } from './refactored-src/layout/TopBar';
 import { Navigation } from './refactored-src/layout/Navigation';
@@ -27,16 +28,12 @@ import { AboutPage } from './components/AboutPage';
 import { MinimalOnboarding } from './components/MinimalOnboarding';
 import { LevelUpModal } from './components/LevelUpModal';
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
 function isNativePlatform(): boolean {
     return (
         typeof window !== 'undefined' &&
         (window as any).Capacitor?.isNativePlatform?.() === true
     );
 }
-
-// ─── Shell ────────────────────────────────────────────────────────────────────
 
 function AppShell() {
     const {
@@ -52,13 +49,12 @@ function AppShell() {
         levelUpQueue, popLevelUp,
     } = useAppContext();
 
-    // Swipe z krawędzi ekranu zmienia zakładkę — tylko na mobile
     const isNative = isNativePlatform();
+
     useSwipeNavigation({
         currentView: view,
         onViewChange: setView,
         isPremium,
-        // Na web wyłączone — tam myszka nie generuje touch events
         config: isNative ? {} : { minSwipeX: 9999 },
     });
 
@@ -77,6 +73,9 @@ function AppShell() {
         settings: <SettingsView />,
     };
 
+    // Na mobile native — padding pod baner AdMob
+    // Na mobile web — padding pod MobileAppBanner
+    // Na desktop — minimalny padding
     const bottomPadding = isNative ? 'pb-24' : 'pb-4';
 
     return (
@@ -103,11 +102,12 @@ function AppShell() {
                     levelUpData={levelUpQueue[0]}
                 />
             )}
+
+            {/* Banner o aplikacji mobilnej — tylko na mobile web */}
+            <MobileAppBanner />
         </div>
     );
 }
-
-// ─── Root ─────────────────────────────────────────────────────────────────────
 
 export default function App() {
     return (

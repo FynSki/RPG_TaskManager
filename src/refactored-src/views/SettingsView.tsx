@@ -1,6 +1,6 @@
 ﻿/**
  * SettingsView — widok ustawień
- * Zawiera: Notifications, Export/Import, Rewarded Ad, Danger Zone
+ * Zawiera: Notifications, Mobile App info, Export/Import, Rewarded Ad, Danger Zone
  */
 
 import { useState } from 'react';
@@ -9,7 +9,15 @@ import { DataManagement } from "../../components/DataManagement";
 import { NotificationSettingsPanel } from "../../components/NotificationSettingsPanel";
 import { showRewardedAd } from "../../services/AdService";
 
-const REWARDED_GOLD = 50; // ile Gold za obejrzenie reklamy
+const GOOGLE_PLAY_URL = 'https://play.google.com/store/apps/details?id=com.codefusion.rpgplanner';
+const REWARDED_GOLD = 50;
+
+function isNativePlatform(): boolean {
+    return (
+        typeof window !== 'undefined' &&
+        (window as any).Capacitor?.isNativePlatform?.() === true
+    );
+}
 
 export function SettingsView() {
     const {
@@ -22,9 +30,7 @@ export function SettingsView() {
 
     const [isLoadingAd, setIsLoadingAd] = useState(false);
     const [adMessage, setAdMessage] = useState<string | null>(null);
-
-    const isNative = typeof window !== 'undefined' &&
-        (window as any).Capacitor?.isNativePlatform?.() === true;
+    const isNative = isNativePlatform();
 
     async function handleWatchAd() {
         setIsLoadingAd(true);
@@ -63,6 +69,28 @@ export function SettingsView() {
                 {/* Powiadomienia */}
                 <NotificationSettingsPanel />
 
+                {/* Info o aplikacji mobilnej — tylko na web */}
+                {!isNative && (
+                    <div className="bg-slate-900 rounded-xl p-6 border border-indigo-700/50">
+                        <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+                            📱 Mobile App Available
+                        </h3>
+                        <p className="text-slate-400 text-sm mb-4">
+                            Get the full RPG Planner experience on your Android device.
+                            Push notifications, better performance and offline support!
+                        </p>
+                        <a
+                            href={GOOGLE_PLAY_URL}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white px-5 py-2 rounded-lg transition font-semibold text-sm"
+                        >
+                            <span>▶</span>
+                            Download on Google Play
+                        </a>
+                    </div>
+                )}
+
                 {/* Reklama za Gold — tylko na mobile */}
                 {isNative && (
                     <div className="bg-slate-900 rounded-xl p-6 border border-yellow-700/30">
@@ -70,12 +98,16 @@ export function SettingsView() {
                             🪙 Earn Gold
                         </h3>
                         <p className="text-slate-400 text-sm mb-4">
-                            Watch a short ad to earn <span className="text-yellow-400 font-semibold">{REWARDED_GOLD} Gold</span> — use it to unlock new Skills and Task Classes.
+                            Watch a short ad to earn{' '}
+                            <span className="text-yellow-400 font-semibold">{REWARDED_GOLD} Gold</span>{' '}
+                            — use it to unlock new Skills and Task Classes.
                         </p>
 
                         <div className="flex items-center gap-3">
                             <div className="bg-slate-800 rounded-lg px-4 py-2 border border-slate-700">
-                                <span className="text-yellow-400 font-bold">🪙 {(character.gold ?? 0).toLocaleString()}</span>
+                                <span className="text-yellow-400 font-bold">
+                                    🪙 {(character.gold ?? 0).toLocaleString()}
+                                </span>
                                 <span className="text-slate-400 text-xs ml-1">current</span>
                             </div>
                             <button
@@ -84,15 +116,9 @@ export function SettingsView() {
                                 className="flex items-center gap-2 px-5 py-2 bg-yellow-600 hover:bg-yellow-500 text-white rounded-lg transition font-semibold disabled:opacity-50"
                             >
                                 {isLoadingAd ? (
-                                    <>
-                                        <span className="animate-spin">⏳</span>
-                                        Loading...
-                                    </>
+                                    <><span className="animate-spin">⏳</span> Loading...</>
                                 ) : (
-                                    <>
-                                        <span>▶️</span>
-                                        Watch Ad (+{REWARDED_GOLD} Gold)
-                                    </>
+                                    <><span>▶️</span> Watch Ad (+{REWARDED_GOLD} Gold)</>
                                 )}
                             </button>
                         </div>
@@ -130,7 +156,9 @@ export function SettingsView() {
                     </button>
 
                     <div className="mt-4 pt-4 border-t border-rose-700">
-                        <p className="text-rose-200 text-sm mb-3">Want to see the welcome screen again?</p>
+                        <p className="text-rose-200 text-sm mb-3">
+                            Want to see the welcome screen again?
+                        </p>
                         <button
                             onClick={() => {
                                 localStorage.removeItem('hasSeenOnboarding');
