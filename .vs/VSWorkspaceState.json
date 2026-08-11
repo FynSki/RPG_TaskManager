@@ -3,7 +3,10 @@
     "",
     "\\src",
     "\\src\\assets",
+    "\\src\\refactored-src",
+    "\\src\\refactored-src\\views",
     "\\src\\services"
   ],
+  "SelectedNode": "\\src\\App.tsx",
   "PreviewInSolutionExplorer": false
 }
